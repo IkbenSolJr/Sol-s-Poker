@@ -550,6 +550,7 @@ async function getRoom(code) {
 }
 
 async function setRoom(code, state) {
+  state.version = (state.version || 0) + 1;
   const { error } = await sbClient.from('rooms').upsert({ id: code, state, updated_at: new Date().toISOString() });
   if (error) console.error('setRoom error', error);
 }
@@ -584,7 +585,13 @@ async function createRoom() {
   localStorage.setItem('my_poker_name', name);
   localStorage.setItem('my_poker_avatar', myAvatar);
 
-  const code = genRoomCode();
+  // Tạo room code, kiểm tra không trùng
+  let code = genRoomCode();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const existing = await getRoom(code);
+    if (!existing) break; // code chưa dùng
+    code = genRoomCode();
+  }
   roomId = code;
   isHost = true;
   mySeat = 0;
@@ -656,10 +663,11 @@ function buildInitialRoomState(code, maxPlayers, startChips, name, id, avatar) {
   );
   return {
     id: code, phase: 'lobby', maxPlayers, startChips,
+    hostId: id,  // player ID của host (không phải seat index)
     seats, community: [], pot: 0, currentBet: 0,
     dealerSeat: 0, actionSeat: -1, round: 0, bigBlind: 20,
     handsToBlindUp: 5, log: [],
-    deck: [], hands: {}, // hands stored separately per player
+    deck: [], hands: {},
   };
 }
 
@@ -679,20 +687,25 @@ function updateWaitingRoom(state) {
     `${state.seats.filter(Boolean).length} / ${state.maxPlayers} người đã vào`;
 
   const list = document.getElementById('waiting-players-list');
+  const hostPlayerId = state.hostId || state.seats[0]?.playerId; // fallback seat 0
   list.innerHTML = Array.from({length: state.maxPlayers}, (_, i) => {
     const s = state.seats[i];
     if (!s) return `<div class="player-row"><span class="seat-number">${i+1}</span><span style="color:var(--text-dim);font-size:0.8rem;font-style:italic">Chờ người chơi...</span></div>`;
     const isMe = s.playerId === myId;
-    const badge = i === 0 ? 'host' : 'ready';
+    const isRoomHost = s.playerId === hostPlayerId;
+    const badge = isRoomHost ? 'host' : 'ready';
     return `<div class="player-row ${isMe?'you':''}">
       <span class="seat-number">${i+1}</span>
       <span class="player-avatar-sm">${s.avatar}</span>
       <span class="player-row-name">${s.name}${isMe?' (bạn)':''}</span>
-      <span class="player-row-badge ${badge}">${i===0?'Host':'Ready'}</span>
+      <span class="player-row-badge ${badge}">${isRoomHost?'Host':'Ready'}</span>
     </div>`;
   }).join('');
 
-  const canStart = isHost && state.seats.filter(Boolean).length >= 2;
+  // isHost dựa theo hostId trong state, không phải seat 0
+  const amIHost = hostPlayerId === myId;
+  if (amIHost !== isHost) isHost = amIHost; // sync local flag
+  const canStart = amIHost && state.seats.filter(Boolean).length >= 2;
   document.getElementById('start-game-btn').style.display = canStart ? 'block' : 'none';
 }
 
@@ -769,8 +782,12 @@ async function doLeaveRoom() {
         }
       }
     } else {
-      // Lobby hoặc gameover → chỉ xóa ghế
+      // Lobby: xóa ghế và chuyển host nếu cần
       state.seats[mySeat] = null;
+      if (state.phase === 'lobby' && state.hostId === myId) {
+        const nextHost = state.seats.find(s => s && s.playerId && s.playerId !== myId);
+        state.hostId = nextHost ? nextHost.playerId : null;
+      }
     }
 
     await setRoom(roomId, state);
@@ -867,16 +884,20 @@ async function hostDealHand(state) {
     }
   });
 
-  // Rotate dealer — nếu dealerSeat cũ không còn alive, tìm vị trí gần nhất
+  // Rotate dealer
   const aliveSeats = alive.map(s=>s.seat);
-  let di = aliveSeats.indexOf(state.dealerSeat);
-  if (di === -1) {
-    // Tìm seat alive tiếp theo sau dealerSeat cũ
-    di = aliveSeats.findIndex(s => s > state.dealerSeat);
-    if (di === -1) di = 0;
-    state.dealerSeat = aliveSeats[di];
+  if (state.round === 0) {
+    // Hand đầu tiên (round còn là 0 trước khi tăng): dùng dealerSeat ban đầu, không rotate
+    // dealerSeat đã được set trong buildInitialRoomState
   } else {
-    state.dealerSeat = aliveSeats[(di+1)%aliveSeats.length];
+    let di = aliveSeats.indexOf(state.dealerSeat);
+    if (di === -1) {
+      // Dealer bị eliminated — tìm seat alive tiếp theo
+      const nextIdx = aliveSeats.findIndex(s => s > state.dealerSeat);
+      state.dealerSeat = aliveSeats[nextIdx !== -1 ? nextIdx : 0];
+    } else {
+      state.dealerSeat = aliveSeats[(di+1)%aliveSeats.length];
+    }
   }
 
   // Reset per-hand seat state
@@ -889,28 +910,28 @@ async function hostDealHand(state) {
     state.hands[p.playerId] = [state.deck.pop(), state.deck.pop()];
   });
 
+  // ── Blind escalation TRƯỚC KHI post ──
+  state.handsToBlindUp--;
+  if (state.handsToBlindUp <= 0) {
+    state.bigBlind = Math.min(state.bigBlind * 2, 400);
+    state.handsToBlindUp = 5;
+    state.log = [`⬆️ Mù tăng lên ${state.bigBlind}!`, ...(state.log||[])];
+  }
+
   // Blinds — Heads-up rule: Dealer = SB, non-dealer = BB
   const dIdx = aliveSeats.indexOf(state.dealerSeat);
   const isHeadsUp = aliveSeats.length === 2;
-  // Heads-up: SB = dealer; 3+ người: SB = seat sau dealer
   const sbSeat = isHeadsUp ? state.dealerSeat : aliveSeats[(dIdx+1)%aliveSeats.length];
   const bbSeat = isHeadsUp ? aliveSeats[(dIdx+1)%aliveSeats.length] : aliveSeats[(dIdx+2)%aliveSeats.length];
   const sb = state.seats[sbSeat], bb = state.seats[bbSeat];
   const sbAmt = Math.min(Math.floor(state.bigBlind/2), sb.chips);
   const bbAmt = Math.min(state.bigBlind, bb.chips);
-  sb.chips -= sbAmt; sb.bet = sbAmt; sb.totalBet = (sb.totalBet||0) + sbAmt; state.pot += sbAmt;
-  bb.chips -= bbAmt; bb.bet = bbAmt; bb.totalBet = (bb.totalBet||0) + bbAmt; state.pot += bbAmt;
+  sb.chips -= sbAmt; sb.bet = sbAmt; sb.totalBet = sbAmt; state.pot += sbAmt;
+  bb.chips -= bbAmt; bb.bet = bbAmt; bb.totalBet = bbAmt; state.pot += bbAmt;
   state.currentBet = bbAmt;
   if (sbAmt < Math.floor(state.bigBlind/2)) sb.allIn = true;
   if (bbAmt < state.bigBlind) bb.allIn = true;
 
-  // Blind escalation
-  state.handsToBlindUp--;
-  if (state.handsToBlindUp <= 0) {
-    state.bigBlind = Math.min(state.bigBlind*2, 400);
-    state.handsToBlindUp = 5;
-    state.log = [`⬆️ Mù tăng lên ${state.bigBlind}!`, ...(state.log||[])];
-  }
   state.log = [`--- Ván ${state.round} | Mù ${state.bigBlind} ---`, ...(state.log||[])].slice(0,60);
 
   // Build action queue preflop
@@ -946,8 +967,17 @@ async function sendAction(action, raiseAmt=0) {
   try {
     const state = await getRoom(roomId);
     if (!state || state.actionSeat !== mySeat) return;
+    const versionBefore = state.version || 0;
 
     applyPlayerAction(state, mySeat, action, raiseAmt);
+
+    // Version check: nếu state bị thay đổi bởi client khác trong lúc này, bỏ qua
+    const check = await getRoom(roomId);
+    if (!check || (check.version || 0) !== versionBefore) {
+      console.warn('[RACE] State changed by another client, skipping action');
+      return;
+    }
+
     await setRoom(roomId, state);
     await advanceGame(state);
   } finally {
@@ -1035,18 +1065,11 @@ async function advanceGame(state) {
       state.phase = 'gameover';
     }
 
-    await setRoom(roomId, state);
-
-    // Auto deal ván mới sau 4 giây (host only) — giống doShowdown
-    if (isHost && stillAlive.length >= 2) {
-      setTimeout(async () => {
-        const fresh = await getRoom(roomId);
-        if (fresh && fresh.phase === 'playing') {
-          fresh.revealHands = null;
-          await hostDealHand(fresh);
-        }
-      }, 4000);
+    // Đánh dấu thời điểm deal ván mới (bất kỳ client nào cũng có thể trigger)
+    if (stillAlive.length >= 2) {
+      state.nextDealAt = Date.now() + 4000;
     }
+    await setRoom(roomId, state);
     return;
   }
 
@@ -1202,18 +1225,11 @@ async function doShowdown(state) {
     // doLeaveRoom sẽ tự xóa khi người chơi rời chủ động
   }
 
-  await setRoom(roomId, state);
-
-  // Auto deal next hand after delay (host only)
-  if (isHost && stillAlive.length >= 2) {
-    setTimeout(async () => {
-      const fresh = await getRoom(roomId);
-      if (fresh && fresh.phase === 'playing') {
-        fresh.revealHands = null;
-        await hostDealHand(fresh);
-      }
-    }, 6000);
+  // Đánh dấu thời điểm deal ván mới (bất kỳ client nào cũng có thể trigger)
+  if (stillAlive.length >= 2) {
+    state.nextDealAt = Date.now() + 5000;
   }
+  await setRoom(roomId, state);
 }
 
 function addLog(state, msg) {
@@ -1223,6 +1239,8 @@ function addLog(state, msg) {
 // ══════════════════════════════════════════════════
 //   STATE → UI
 // ══════════════════════════════════════════════════
+let _dealScheduled = false; // tránh schedule deal nhiều lần
+
 function handleStateUpdate(state) {
   GS = state;
 
@@ -1237,40 +1255,45 @@ function handleStateUpdate(state) {
     document.getElementById('game').style.display = 'flex';
   }
 
-  // Cập nhật isHost nếu hostId thay đổi (sau khi đối thủ rời phòng)
-  if (state.hostId && state.hostId === myId) {
-    isHost = true;
-  } else if (state.hostId && state.hostId !== myId) {
-    isHost = false;
+  // Cập nhật isHost nếu hostId thay đổi
+  if (state.hostId && state.hostId === myId) isHost = true;
+  else if (state.hostId && state.hostId !== myId) isHost = false;
+
+  // ── AUTO DEAL VÁN MỚI (bất kỳ client nào cũng có thể trigger) ──
+  // Dùng nextDealAt timestamp thay vì isHost — client nào nhận state trước sẽ deal
+  if (state.nextDealAt && state.phase === 'playing' && !_dealScheduled) {
+    const delay = Math.max(0, state.nextDealAt - Date.now());
+    _dealScheduled = true;
+    setTimeout(async () => {
+      _dealScheduled = false;
+      const fresh = await getRoom(roomId);
+      if (!fresh || fresh.phase !== 'playing' || !fresh.nextDealAt) return;
+      // "First writer wins": xóa nextDealAt trước khi deal để client khác không deal lại
+      fresh.nextDealAt = null;
+      fresh.revealHands = null;
+      await hostDealHand(fresh);
+    }, delay);
   }
 
-  // Host tự động xử lý trường hợp tất cả all-in nhưng showdown chưa chạy
-  // (state bị kẹt ở gamePhase <= 3, actionSeat = -1, community >= 5 lá)
-  if (isHost && state.phase === 'playing' && (state.gamePhase || 0) < 4) {
+  // ── STUCK ALL-IN: mọi client đều có thể phát hiện và fix ──
+  if (state.phase === 'playing' && (state.gamePhase || 0) < 4 && !state.nextDealAt) {
     const everyoneAllInOrFolded = state.seats.every(s => !s || s.folded || s.allIn || s.chips === 0);
     const communityFull = (state.community || []).length === 5;
     const noAction = state.actionSeat === -1 && (state.bettingQueue || []).length === 0;
     if (everyoneAllInOrFolded && communityFull && noAction && !state.revealHands) {
-      // State bị kẹt — host chạy showdown
-      console.log('[HOST] Detecting stuck all-in state, running showdown...');
+      // Jitter ngẫu nhiên để tránh nhiều client cùng gọi doShowdown
+      const jitter = Math.random() * 800;
       setTimeout(async () => {
         const fresh = await getRoom(roomId);
-        if (fresh && fresh.phase === 'playing' && (fresh.gamePhase || 0) < 4 && !fresh.revealHands) {
+        if (fresh && fresh.phase === 'playing' && (fresh.gamePhase || 0) < 4 && !fresh.revealHands && !fresh.nextDealAt) {
           await doShowdown(fresh);
         }
-      }, 500);
+      }, 400 + jitter);
     }
   }
 
-  // Hiển thị màn hình Game Over
-  if (state.phase === 'gameover') {
-    showGameOverScreen(state);
-    return;
-  }
-
-  // Sau khi đối thủ rời phòng: người còn lại (hostId) tự deal ván mới
+  // ── OPPONENT LEFT: người còn lại tự nhận hostId và deal ──
   if (state.phase === 'playing' && state.gamePhase === -1 && state.hostId === myId) {
-    console.log('[HOST] Opponent left, dealing new hand...');
     setTimeout(async () => {
       const fresh = await getRoom(roomId);
       if (fresh && fresh.phase === 'playing' && fresh.gamePhase === -1) {
@@ -1280,13 +1303,20 @@ function handleStateUpdate(state) {
     }, 3000);
   }
 
-  // Ván mới bắt đầu → tự đóng result overlay nếu đang mở
-  if (state.phase === 'playing' && (state.gamePhase === 0 || state.gamePhase === -1)) {
+  // Game Over
+  if (state.phase === 'gameover') {
+    showGameOverScreen(state);
+    return;
+  }
+
+  // Ván mới → đóng result overlay
+  if (state.phase === 'playing' && state.gamePhase === 0) {
     const overlay = document.getElementById('result-overlay');
     if (overlay && overlay.classList.contains('show')) {
       overlay.classList.remove('show');
       _resultShown = false;
     }
+    _resultRound = -1;
   }
 
   renderGame(state);
@@ -1510,20 +1540,32 @@ function renderActionsUI(state) {
 }
 
 let _resultShown = false;
-let _resultRound = -1; // tránh show lại cùng 1 ván
+let _resultRound = -1;
 function showResultIfNeeded(state) {
-  // Mỗi ván chỉ show 1 lần (theo round number)
   const currentRound = state.round || 0;
   if (_resultShown && _resultRound === currentRound) return;
-  _resultShown = true;
-  _resultRound = currentRound;
 
   const me = state.seats?.[mySeat];
   if (!me) return;
 
-  // Ưu tiên đọc kết quả từ log — chính xác nhất cho mọi trường hợp (fold, showdown, all-in)
-  const winLog = (state.log||[]).find(l => l.includes('🏆') && l.includes(`ván ${currentRound || ''}`).toString() || l.includes('🏆'));
-  const isMyWinFromLog = winLog ? winLog.includes(me.name) : null;
+  // Validate dữ liệu TRƯỚC khi lock — tránh khóa rồi thoát sớm
+  const isFoldWin = state.gamePhase === 4 && !state.revealHands;
+  const handsSource = state.revealHands || state.hands || {};
+  const contenders = isFoldWin ? [] :
+    state.seats.map((s,i)=>({...s,seat:i})).filter(s=>s && !s.folded && handsSource[s.playerId]);
+  if (!isFoldWin && contenders.length === 0) return; // không có dữ liệu, chưa lock
+
+  // Dữ liệu đủ → lock
+  _resultShown = true;
+  _resultRound = currentRound;
+
+  // Tìm winLog: chỉ tìm trong log của ván hiện tại (5 log gần nhất)
+  // Dùng playerId match để tránh nhầm tên tương tự
+  const recentLogs = (state.log||[]).slice(0, 10);
+  const winLog = recentLogs.find(l => l.includes('🏆'));
+  // Dùng playerId để xác định chắc hơn tên
+  const myName = me.name;
+  const isMyWinFromLog = winLog ? winLog.includes(myName) : null;
 
   // Nếu là fold-win (người kia fold, không có revealHands)
   const isFoldWin = state.gamePhase === 4 && !state.revealHands;
