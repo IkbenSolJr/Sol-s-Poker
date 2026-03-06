@@ -1049,8 +1049,8 @@ async function advanceGame(state) {
   // Check only-one-left (fold win)
   const notFolded = state.seats.map((s,i)=>({...s,seat:i})).filter(s=>s&&!s.folded&&s.chips>=0&&!s.eliminated);
   if (notFolded.length === 1) {
-    const winner = notFolded[0];
-    winner.chips += state.pot;
+    const winnerSeat = notFolded[0].seat;
+    state.seats[winnerSeat].chips += state.pot;
     const wonAmount = state.pot;
     addLog(state, `🏆 ${winner.name} thắng ${wonAmount} chips (đối thủ fold)`);
     state.pot = 0;
