@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>♠ Royal Poker — Multiplayer</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♠</text></svg>">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap');
 
@@ -174,6 +175,14 @@ kbd{display:inline-block;background:rgba(0,0,0,0.35);border:1px solid rgba(255,2
   .comm-card{width:30px;height:44px;font-size:0.62rem;}
   .center-info{width:46%;}
 }
+
+/* Leave button in top-bar */
+.sbox.btn:hover { opacity: 0.85; }
+
+/* Gameover detail scroll */
+#go-detail::-webkit-scrollbar { width: 4px; }
+#go-detail::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 4px; }
+#go-detail::-webkit-scrollbar-thumb { background: rgba(200,151,63,0.4); border-radius: 4px; }
 </style>
 </head>
 <body>
@@ -267,6 +276,7 @@ kbd{display:inline-block;background:rgba(0,0,0,0.35);border:1px solid rgba(255,2
     <div class="sbox"><span class="sbox-label">Ván</span><span class="sbox-val" id="st-round">0</span></div>
     <div class="sbox"><span class="sbox-label">Phòng</span><span class="sbox-val" id="st-room">----</span></div>
     <button class="sbox btn" id="mute-btn" onclick="toggleMute()" style="cursor:pointer;font-size:0.75rem;font-family:'Playfair Display',serif;">🔊</button>
+    <button class="sbox btn" onclick="confirmLeave()" style="cursor:pointer;font-size:0.7rem;font-family:'Playfair Display',serif;color:#ff7b7b;border-color:rgba(255,100,100,0.3);" title="Rời phòng">✕ Rời</button>
   </div>
 
   <div class="table-outer">
@@ -300,7 +310,34 @@ kbd{display:inline-block;background:rgba(0,0,0,0.35);border:1px solid rgba(255,2
     <div class="modal-title" id="r-title"></div>
     <div class="modal-sub" id="r-sub"></div>
     <div class="modal-detail" id="r-detail"></div>
-    <button class="btn btn-deal" onclick="closeResult()" style="margin-top:10px">Tiếp tục →</button>
+    <div style="display:flex;gap:10px;margin-top:14px;justify-content:center;flex-wrap:wrap;">
+      <button class="btn btn-deal" onclick="closeResult()">Tiếp tục →</button>
+      <button class="btn" onclick="confirmLeave()" style="background:rgba(255,80,80,0.15);border-color:rgba(255,100,100,0.4);color:#ff9090;font-size:0.8rem;">✕ Rời phòng</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm leave overlay -->
+<div class="overlay" id="confirm-leave-overlay">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-title" style="font-size:1.4rem;color:#ff9090;">⚠️ Rời phòng?</div>
+    <div class="modal-sub" id="confirm-leave-msg">Bạn có chắc muốn rời phòng không?</div>
+    <div style="display:flex;gap:12px;margin-top:20px;justify-content:center;">
+      <button class="btn" onclick="closeConfirmLeave()" style="flex:1;background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.2);">Ở lại</button>
+      <button class="btn" onclick="doLeaveRoom()" style="flex:1;background:rgba(180,30,30,0.3);border-color:rgba(255,80,80,0.5);color:#ff9090;">Rời phòng</button>
+    </div>
+  </div>
+</div>
+
+<!-- Game Over overlay -->
+<div class="overlay" id="gameover-overlay">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-title" id="go-title" style="font-size:2.2rem;">🏆 Kết thúc!</div>
+    <div class="modal-sub" id="go-sub"></div>
+    <div class="modal-detail" id="go-detail" style="max-height:260px;overflow-y:auto;text-align:left;"></div>
+    <div style="display:flex;gap:10px;margin-top:18px;justify-content:center;flex-wrap:wrap;" id="go-actions">
+      <button class="btn btn-gold" onclick="doLeaveRoom()" style="font-size:0.9rem;">← Về sảnh</button>
+    </div>
   </div>
 </div>
 
@@ -603,17 +640,65 @@ function updateWaitingRoom(state) {
   document.getElementById('start-game-btn').style.display = canStart ? 'block' : 'none';
 }
 
-async function leaveRoom() {
+function confirmLeave() {
+  const state = GS;
+  const msg = document.getElementById('confirm-leave-msg');
+  if (state && state.phase === 'playing') {
+    const me = state.seats?.[mySeat];
+    const chips = me?.chips ?? 0;
+    if (chips > 0) {
+      msg.textContent = `Bạn đang có ${chips} chips. Rời phòng giữa chừng sẽ mất tất cả chips!`;
+    } else {
+      msg.textContent = 'Bạn có chắc muốn rời phòng không?';
+    }
+  } else {
+    msg.textContent = 'Bạn có chắc muốn rời phòng không?';
+  }
+  document.getElementById('confirm-leave-overlay').classList.add('show');
+}
+
+function closeConfirmLeave() {
+  document.getElementById('confirm-leave-overlay').classList.remove('show');
+}
+
+async function doLeaveRoom() {
+  closeConfirmLeave();
   // Xóa phòng đã lưu khi thoát chủ động
   localStorage.removeItem('my_poker_room');
   localStorage.removeItem('my_poker_seat');
   if (!roomId) { location.reload(); return; }
+
   const state = await getRoom(roomId);
   if (state && state.seats[mySeat]?.playerId === myId) {
+    // Xóa ghế khỏi bàn
     state.seats[mySeat] = null;
+
+    // Nếu đang chơi và host rời → chuyển host cho người tiếp theo
+    if (state.phase === 'playing' && mySeat === 0) {
+      const nextHost = state.seats.findIndex((s, i) => i > 0 && s && s.playerId);
+      // Không cần làm gì đặc biệt — isHost chỉ là client-side flag
+      // Người còn lại sẽ tự trở thành host khi reload (seat 0 trống, họ ở seat cao hơn)
+      // TODO: nếu muốn chuyển host thực sự, cần thêm field hostId vào state
+    }
+
+    // Nếu đang chơi và chỉ còn 1 người → kết thúc ván
+    const remaining = state.seats.filter(s => s && s.playerId && !s.eliminated);
+    if (state.phase === 'playing' && remaining.length === 1) {
+      const winner = remaining[0];
+      winner.chips += state.pot;
+      state.pot = 0;
+      addLog(state, `🏆 ${winner.name} thắng vì đối thủ rời phòng!`);
+      state.phase = 'gameover';
+    }
+
     await setRoom(roomId, state);
   }
   location.reload();
+}
+
+// Giữ lại để tương thích với nút ở waiting room
+async function leaveRoom() {
+  confirmLeave();
 }
 
 // ══════════════════════════════════════════════════
@@ -978,7 +1063,59 @@ function handleStateUpdate(state) {
     }
   }
 
+  // Hiển thị màn hình Game Over
+  if (state.phase === 'gameover') {
+    showGameOverScreen(state);
+    return;
+  }
+
   renderGame(state);
+}
+
+function showGameOverScreen(state) {
+  // Tìm người thắng cuối cùng (có chips > 0, không eliminated)
+  const survivors = state.seats.filter(s => s && !s.eliminated && s.chips > 0);
+  const me = state.seats?.[mySeat];
+  const iWon = survivors.some(s => s.playerId === myId);
+
+  const goTitle = document.getElementById('go-title');
+  const goSub = document.getElementById('go-sub');
+  const goDetail = document.getElementById('go-detail');
+  const goActions = document.getElementById('go-actions');
+
+  if (iWon) {
+    goTitle.textContent = '🏆 Bạn Thắng Tất Cả!';
+    goTitle.style.color = '#ffd700';
+    goSub.textContent = `Chips cuối: ${me?.chips ?? 0} — Xuất sắc!`;
+    SFX.win(); confetti();
+  } else {
+    goTitle.textContent = '💀 Game Kết Thúc';
+    goTitle.style.color = '#ff9090';
+    const winner = survivors[0];
+    goSub.textContent = winner ? `${winner.avatar || ''} ${winner.name} giành chiến thắng!` : 'Ván đấu đã kết thúc.';
+    SFX.lose();
+  }
+
+  // Bảng xếp hạng cuối
+  const ranked = [...state.seats].filter(Boolean).sort((a, b) => (b.chips || 0) - (a.chips || 0));
+  goDetail.innerHTML = ranked.map((s, i) => {
+    const isMe = s.playerId === myId;
+    const isWinner = survivors.some(w => w.playerId === s.playerId);
+    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;margin:4px 0;
+      background:${isMe ? 'rgba(200,151,63,0.12)' : 'rgba(255,255,255,0.04)'};
+      border:1px solid ${isMe ? 'rgba(200,151,63,0.35)' : 'rgba(255,255,255,0.08)'};border-radius:8px;">
+      <span style="font-size:1.1rem;width:28px;text-align:center">${medal}</span>
+      <span style="font-size:1.1rem">${s.avatar || '🎴'}</span>
+      <span style="flex:1;font-weight:${isMe?700:400};color:${isMe?'#e8d5a3':'#b0b0b0'}">${s.name}${isMe?' (bạn)':''}</span>
+      <span style="color:${isWinner?'#ffd700':'#888'};font-weight:600">🪙 ${s.chips || 0}</span>
+    </div>`;
+  }).join('');
+
+  // Nút host có thể chơi lại (tạo phòng mới)
+  goActions.innerHTML = `<button class="btn btn-gold" onclick="doLeaveRoom()" style="font-size:0.9rem;">← Về sảnh</button>`;
+
+  document.getElementById('gameover-overlay').classList.add('show');
 }
 
 function renderGame(state) {
@@ -1236,7 +1373,15 @@ document.addEventListener('keydown', e => {
   if (e.ctrlKey||e.metaKey||e.altKey) return;
   const key = e.key.toUpperCase();
   const overlayOpen = document.querySelector('.overlay.show');
-  if (overlayOpen) { if (key==='ESCAPE'||key==='ENTER') closeResult(); return; }
+  if (overlayOpen) {
+    if (key === 'ESCAPE') {
+      closeResult();
+      closeConfirmLeave();
+    } else if (key === 'ENTER') {
+      closeResult();
+    }
+    return;
+  }
   const isMyTurn = GS && GS.actionSeat === mySeat;
   switch(key) {
     case 'F': if(isMyTurn) sendAction('fold'); break;
