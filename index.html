@@ -867,14 +867,21 @@ async function hostDealHand(state) {
     }
   });
 
-  // Rotate dealer
+  // Rotate dealer — nếu dealerSeat cũ không còn alive, tìm vị trí gần nhất
   const aliveSeats = alive.map(s=>s.seat);
-  const di = aliveSeats.indexOf(state.dealerSeat);
-  state.dealerSeat = aliveSeats[(di+1)%aliveSeats.length];
+  let di = aliveSeats.indexOf(state.dealerSeat);
+  if (di === -1) {
+    // Tìm seat alive tiếp theo sau dealerSeat cũ
+    di = aliveSeats.findIndex(s => s > state.dealerSeat);
+    if (di === -1) di = 0;
+    state.dealerSeat = aliveSeats[di];
+  } else {
+    state.dealerSeat = aliveSeats[(di+1)%aliveSeats.length];
+  }
 
   // Reset per-hand seat state
   state.seats.forEach((s,i) => {
-    if (s) { s.bet = 0; s.folded = s.chips <= 0; s.allIn = false; }
+    if (s) { s.bet = 0; s.totalBet = 0; s.folded = s.chips <= 0; s.allIn = false; }
   });
 
   // Deal 2 cards each
@@ -882,16 +889,20 @@ async function hostDealHand(state) {
     state.hands[p.playerId] = [state.deck.pop(), state.deck.pop()];
   });
 
-  // Blinds
+  // Blinds — Heads-up rule: Dealer = SB, non-dealer = BB
   const dIdx = aliveSeats.indexOf(state.dealerSeat);
-  const sbSeat = aliveSeats[(dIdx+1)%aliveSeats.length];
-  const bbSeat = aliveSeats[(dIdx+2)%aliveSeats.length];
+  const isHeadsUp = aliveSeats.length === 2;
+  // Heads-up: SB = dealer; 3+ người: SB = seat sau dealer
+  const sbSeat = isHeadsUp ? state.dealerSeat : aliveSeats[(dIdx+1)%aliveSeats.length];
+  const bbSeat = isHeadsUp ? aliveSeats[(dIdx+1)%aliveSeats.length] : aliveSeats[(dIdx+2)%aliveSeats.length];
   const sb = state.seats[sbSeat], bb = state.seats[bbSeat];
-  const sbAmt = Math.min(state.bigBlind/2, sb.chips);
+  const sbAmt = Math.min(Math.floor(state.bigBlind/2), sb.chips);
   const bbAmt = Math.min(state.bigBlind, bb.chips);
-  sb.chips -= sbAmt; sb.bet = sbAmt; state.pot += sbAmt;
-  bb.chips -= bbAmt; bb.bet = bbAmt; state.pot += bbAmt;
+  sb.chips -= sbAmt; sb.bet = sbAmt; sb.totalBet = (sb.totalBet||0) + sbAmt; state.pot += sbAmt;
+  bb.chips -= bbAmt; bb.bet = bbAmt; bb.totalBet = (bb.totalBet||0) + bbAmt; state.pot += bbAmt;
   state.currentBet = bbAmt;
+  if (sbAmt < Math.floor(state.bigBlind/2)) sb.allIn = true;
+  if (bbAmt < state.bigBlind) bb.allIn = true;
 
   // Blind escalation
   state.handsToBlindUp--;
@@ -902,9 +913,15 @@ async function hostDealHand(state) {
   }
   state.log = [`--- Ván ${state.round} | Mù ${state.bigBlind} ---`, ...(state.log||[])].slice(0,60);
 
-  // Build action queue: start after BB
-  const firstIdx = (dIdx+3)%aliveSeats.length;
-  state.bettingQueue = buildQueue(aliveSeats, aliveSeats[firstIdx], state);
+  // Build action queue preflop
+  // Heads-up: SB/Dealer acts first preflop; 3+ người: UTG (sau BB) acts first
+  const firstPreflopSeat = isHeadsUp ? sbSeat : aliveSeats[(dIdx+3)%aliveSeats.length];
+  const preflopQueue = buildQueue(aliveSeats, firstPreflopSeat, state);
+  // BB gets option cuối: nếu BB còn chips và chưa bị push vào queue (sau khi buildQueue filter allIn)
+  if (!preflopQueue.includes(bbSeat) && bb && !bb.allIn && bb.chips > 0) {
+    preflopQueue.push(bbSeat);
+  }
+  state.bettingQueue = preflopQueue;
   state.actionSeat = state.bettingQueue[0] ?? -1;
   state.gamePhase = 0; // preflop
 
@@ -922,19 +939,20 @@ function buildQueue(aliveSeats, startSeat, state) {
 }
 
 // Called by player (via button or keyboard) to send their action
+let _sending = false; // tránh double-send
 async function sendAction(action, raiseAmt=0) {
-  if (!roomId || mySeat < 0) return;
-  const state = await getRoom(roomId);
-  if (!state || state.actionSeat !== mySeat) return;
+  if (!roomId || mySeat < 0 || _sending) return;
+  _sending = true;
+  try {
+    const state = await getRoom(roomId);
+    if (!state || state.actionSeat !== mySeat) return;
 
-  applyPlayerAction(state, mySeat, action, raiseAmt);
-  await setRoom(roomId, state);
-
-  // If host, drive the game forward (advance to next player / next phase)
-  // In this model: anyone can drive — whoever sent the action checks if
-  // the round is over and advances. Use isHost guard to avoid double-advance.
-  // Actually simpler: the acting player always drives.
-  await advanceGame(state);
+    applyPlayerAction(state, mySeat, action, raiseAmt);
+    await setRoom(roomId, state);
+    await advanceGame(state);
+  } finally {
+    _sending = false;
+  }
 }
 
 function applyPlayerAction(state, seat, action, raiseAmt) {
@@ -948,32 +966,42 @@ function applyPlayerAction(state, seat, action, raiseAmt) {
       addLog(state, `${player.name}: Fold`);
       SFX.fold(); break;
     case 'check':
-      addLog(state, `${player.name}: Check`);
-      SFX.check(); break;
+      if (toCall > 0) {
+        // Không cho phép check khi còn phải call — tự động fold thay
+        player.folded = true;
+        addLog(state, `${player.name}: Fold (check không hợp lệ)`);
+        SFX.fold();
+      } else {
+        addLog(state, `${player.name}: Check`);
+        SFX.check();
+      }
+      break;
     case 'call': {
       const ca = Math.min(toCall, player.chips);
-      player.chips -= ca; player.bet += ca; state.pot += ca;
+      player.chips -= ca; player.bet += ca; player.totalBet = (player.totalBet||0) + ca; state.pot += ca;
       if (player.chips === 0) player.allIn = true;
       addLog(state, `${player.name}: Call ${ca}`);
       SFX.chips(3); break;
     }
     case 'raise': {
-      const callFirst = Math.min(toCall, player.chips);
-      const extra = Math.min(raiseAmt, player.chips - callFirst);
-      const total = callFirst + extra;
-      player.chips -= total; player.bet += total; state.pot += total;
+      // raiseAmt = tổng số tiền muốn raise THÊM (trên currentBet)
+      // Ví dụ: currentBet=20, raise 40 → target = 20+40 = 60, cần đặt thêm 60 - player.bet
+      const targetBet = Math.max(state.currentBet + raiseAmt, state.currentBet + state.bigBlind);
+      const need = Math.min(targetBet - player.bet, player.chips);
+      player.chips -= need; player.bet += need; player.totalBet = (player.totalBet||0) + need; state.pot += need;
       state.currentBet = player.bet;
       if (player.chips === 0) player.allIn = true;
       // Re-queue others
       const aliveSeats = state.seats.map((s,i)=>s&&!s.folded&&!s.allIn&&s.chips>0?i:-1).filter(i=>i>=0&&i!==seat);
       const inQ = new Set(state.bettingQueue);
       aliveSeats.forEach(s => { if(!inQ.has(s)) state.bettingQueue.push(s); });
-      addLog(state, `${player.name}: Raise ${extra}`);
+      const raiseTotal = player.bet; // sau khi cộng
+      addLog(state, `${player.name}: Raise lên ${raiseTotal}`);
       SFX.raise(); break;
     }
     case 'allin': {
       const all = player.chips;
-      player.chips = 0; player.bet += all; state.pot += all; player.allIn = true;
+      player.chips = 0; player.bet += all; player.totalBet = (player.totalBet||0) + all; state.pot += all; player.allIn = true;
       if (player.bet > state.currentBet) {
         state.currentBet = player.bet;
         const aliveSeats = state.seats.map((s,i)=>s&&!s.folded&&!s.allIn&&s.chips>0?i:-1).filter(i=>i>=0&&i!==seat);
@@ -992,7 +1020,8 @@ async function advanceGame(state) {
   if (notFolded.length === 1) {
     const winner = notFolded[0];
     winner.chips += state.pot;
-    addLog(state, `🏆 ${winner.name} thắng ${state.pot} (tất cả fold)`);
+    const wonAmount = state.pot;
+    addLog(state, `🏆 ${winner.name} thắng ${wonAmount} chips (đối thủ fold)`);
     state.pot = 0;
     state.actionSeat = -1;
     state.gamePhase = 4;
@@ -1038,7 +1067,8 @@ async function advanceGame(state) {
   state.currentBet = 0;
   state.seats.forEach(s => { if (s) s.bet = 0; });
 
-  const alive = state.seats.map((s,i)=>({...s,seat:i})).filter(s=>s&&!s.folded&&s.chips>=0);
+  // Alive = chưa fold, có chips >= 0 (kể cả all-in để tính vị trí)
+  const alive = state.seats.map((s,i)=>({...s,seat:i})).filter(s=>s&&!s.folded&&s.chips>=0&&!s.eliminated);
   const aliveSeats = alive.map(s=>s.seat);
 
   if (state.gamePhase === 1) {
@@ -1102,14 +1132,62 @@ async function doShowdown(state) {
   const topTb = contenders[0]._best.tb;
   const winners = contenders.filter(p => p._best.rank===topRank && cmpTb(p._best.tb,topTb)===0);
 
-  const share = Math.floor(state.pot / winners.length);
-  winners.forEach(w => { state.seats[w.seat].chips += share; });
-  const rem = state.pot - share*winners.length;
-  if (rem > 0) state.seats[winners[0].seat].chips += rem;
-  state.pot = 0;
+  // ── Side pot logic ──
+  // Contenders đã sort theo rank (tốt nhất trước)
+  // Mỗi contender chỉ có thể thắng tối đa (totalBet của họ) từ mỗi người khác
+  let remainingPot = state.pot;
+  const allPlayers = state.seats.map((s,i)=>s?{...s,seat:i}:null).filter(Boolean);
 
-  winners.forEach(w => addLog(state, `🏆 ${w.name} thắng ${share} — ${w._best.name}`));
-  contenders.filter(p=>!winners.includes(p)).forEach(p => addLog(state, `  ${p.name}: ${p._best.name}`));
+  // Sort contenders: winner trước, loser sau (để phân chia pot đúng thứ tự)
+  // contenders đã được sort ở trên (tốt nhất trước)
+  const processed = new Set();
+
+  for (let ci = 0; ci < contenders.length && remainingPot > 0; ci++) {
+    const c = contenders[ci];
+    if (processed.has(c.playerId)) continue;
+
+    // Tìm những người có rank bằng c (tied winners ở level này)
+    const tiedWinners = [];
+    for (let j = ci; j < contenders.length; j++) {
+      if (contenders[j]._best.rank === c._best.rank && cmpTb(contenders[j]._best.tb, c._best.tb) === 0) {
+        tiedWinners.push(contenders[j]);
+        processed.add(contenders[j].playerId);
+      } else break; // contenders đã sorted, không cần tiếp
+    }
+
+    // Tính pot mà nhóm này có thể tranh
+    // Mỗi winner chỉ tranh được tối đa totalBet của mình từ mỗi người
+    const minTotalBet = Math.min(...tiedWinners.map(w => state.seats[w.seat].totalBet || remainingPot));
+    let eligiblePot = 0;
+    allPlayers.forEach(p => {
+      const contrib = Math.min(p.totalBet || 0, minTotalBet);
+      eligiblePot += contrib;
+    });
+    eligiblePot = Math.min(eligiblePot, remainingPot);
+
+    const share = Math.floor(eligiblePot / tiedWinners.length);
+    tiedWinners.forEach(w => { state.seats[w.seat].chips += share; });
+    const rem = eligiblePot - share * tiedWinners.length;
+    if (rem > 0) state.seats[tiedWinners[0].seat].chips += rem;
+    remainingPot -= eligiblePot;
+
+    if (tiedWinners.length === 1) {
+      addLog(state, `🏆 ${tiedWinners[0].name} thắng ${eligiblePot} — ${tiedWinners[0]._best.name}`);
+    } else {
+      tiedWinners.forEach(w => addLog(state, `🏆 ${w.name} thắng ${share} (hòa) — ${w._best.name}`));
+    }
+  }
+
+  // Phần còn lại (nếu có) trả về người có bet cao nhất không thắng được
+  if (remainingPot > 0) {
+    // Trả lại cho người bet nhiều nhất (thường là người all-in nhiều hơn)
+    const highestBetter = allPlayers.sort((a,b)=>(b.totalBet||0)-(a.totalBet||0))[0];
+    state.seats[highestBetter.seat].chips += remainingPot;
+    addLog(state, `↩️ ${highestBetter.name} nhận lại ${remainingPot} (side pot)`);
+    remainingPot = 0;
+  }
+  state.pot = 0;
+  contenders.filter(p=>!processed.has(p.playerId)).forEach(p => addLog(state, `  ${p.name}: ${p._best.name}`));
 
   // Reveal hands in state so all players can see
   state.revealHands = state.hands;
@@ -1421,8 +1499,10 @@ function renderActionsUI(state) {
     html += `<button class="btn btn-check" onclick="sendAction('check')" title="C">Check <kbd>C</kbd></button>`;
   else
     html += `<button class="btn btn-call" onclick="sendAction('call')" title="C">Call ${toCall} <kbd>C</kbd></button>`;
-  html += `<div class="raise-wrap"><label>Raise</label><input type="number" id="ri" min="${state.bigBlind}" max="${me.chips}" step="${state.bigBlind}" value="${state.bigBlind*3}"></div>`;
-  html += `<button class="btn btn-raise" onclick="sendAction('raise',+document.getElementById('ri').value||${state.bigBlind*3})" title="R">Raise <kbd>R</kbd></button>`;
+  const minRaise = state.bigBlind; // raise thêm tối thiểu = 1 BB
+  const defRaise = Math.min(state.bigBlind * 2, me.chips); // default raise thêm 2BB
+  html += `<div class="raise-wrap"><label>+Raise</label><input type="number" id="ri" min="${minRaise}" max="${me.chips}" step="${state.bigBlind}" value="${defRaise}"></div>`;
+  html += `<button class="btn btn-raise" onclick="sendAction('raise',+document.getElementById('ri').value||${defRaise})" title="R">Raise <kbd>R</kbd></button>`;
   html += `<button class="btn btn-allin" onclick="sendAction('allin')" title="A">All In 💥 <kbd>A</kbd></button>`;
   document.getElementById('actions').innerHTML = html;
 
