@@ -978,8 +978,7 @@ async function sendAction(action, raiseAmt=0) {
       console.warn('[RACE] State changed by another client, skipping action');
       return;
     }
-
-    await setRoom(roomId, state);
+    
     await advanceGame(state);
   } finally {
     _sending = false;
@@ -1504,6 +1503,7 @@ function renderActionsUI(state) {
 
   if (!isMyTurn || !me || me.folded) {
     const other = state.seats?.[state.actionSeat];
+    const thinkingPlayer = other && !other.folded ? other : null;
     const name = other ? other.name : '...';
     const phaseNames = ['Pre-flop','Flop','Turn','River','Showdown'];
     const ph = phaseNames[state.gamePhase ?? 0] || '';
