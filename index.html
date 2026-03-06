@@ -314,16 +314,16 @@ kbd{display:inline-block;background:rgba(0,0,0,0.35);border:1px solid rgba(255,2
 //  ✏️  ĐIỀN KEY SUPABASE CỦA BẠN VÀO ĐÂY
 //  Vào supabase.com → Project → Settings → API
 // ═══════════════════════════════════════════════════
-const SUPABASE_URL = 'https://XXXXXXXXXXXX.supabase.co';   // ← đổi
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6...';   // ← đổi
+const SUPABASE_URL = 'https://ykcdfhpfomyhdmbashih.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlrY2RmaHBmb215aGRtYmFzaGloIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MDM0MTAsImV4cCI6MjA4ODM3OTQxMH0.qtmvuloEAonzhSEEbpfpbWKtRGUZs90QxC4vTy_FySA';
 // ═══════════════════════════════════════════════════
 
 const DEFAULT_CONFIG = {
-  url: SUPABASE_URL !== 'https://ykcdfhpfomyhdmbashih.supabase.co' ? SUPABASE_URL : (localStorage.getItem('sb_url') || ''),
-  key: SUPABASE_KEY !== 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlrY2RmaHBmb215aGRtYmFzaGloIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MDM0MTAsImV4cCI6MjA4ODM3OTQxMH0.qtmvuloEAonzhSEEbpfpbWKtRGUZs90QxC4vTy_FySA' ? SUPABASE_KEY : (localStorage.getItem('sb_key') || ''),
+  url: SUPABASE_URL !== 'https://XXXXXXXXXXXX.supabase.co' ? SUPABASE_URL : (localStorage.getItem('sb_url') || ''),
+  key: SUPABASE_KEY !== 'eyJhbGciOiJIUzI1NiIsInR5cCI6...' ? SUPABASE_KEY : (localStorage.getItem('sb_key') || ''),
 };
 
-let supabase = null;
+let sbClient = null;
 let channel  = null;   // Realtime channel
 let roomId   = null;   // current room code
 let myId     = null;   // unique player id (uuid-ish)
@@ -362,7 +362,7 @@ function saveConfig() {
 
 function initSupabase(url, key) {
   try {
-    supabase = window.supabase.createClient(url, key);
+    sbClient = window.supabase.createClient(url, key);
     return true;
   } catch(e) {
     console.error('Supabase init failed:', e);
@@ -399,13 +399,13 @@ function genRoomCode() {
 // ══════════════════════════════════════════════════
 
 async function getRoom(code) {
-  const { data, error } = await supabase.from('rooms').select('state').eq('id', code).single();
+  const { data, error } = await sbClient.from('rooms').select('state').eq('id', code).single();
   if (error) return null;
   return data.state;
 }
 
 async function setRoom(code, state) {
-  const { error } = await supabase.from('rooms').upsert({ id: code, state, updated_at: new Date().toISOString() });
+  const { error } = await sbClient.from('rooms').upsert({ id: code, state, updated_at: new Date().toISOString() });
   if (error) console.error('setRoom error', error);
 }
 
@@ -413,8 +413,8 @@ async function setRoom(code, state) {
 //   REALTIME SYNC
 // ══════════════════════════════════════════════════
 function subscribeRoom(code) {
-  if (channel) supabase.removeChannel(channel);
-  channel = supabase
+  if (channel) sbClient.removeChannel(channel);
+  channel = sbClient
     .channel('room:' + code)
     .on('postgres_changes', { event:'*', schema:'public', table:'rooms', filter:`id=eq.${code}` },
       payload => {
@@ -433,7 +433,7 @@ async function createRoom() {
   const maxPlayers = parseInt(document.getElementById('max-players-input').value) || 4;
   const startChips = parseInt(document.getElementById('start-chips-input').value) || 1000;
 
-  if (!supabase) { document.getElementById('join-error').textContent = '⚠️ Chưa cấu hình Supabase!'; return; }
+  if (!sbClient) { document.getElementById('join-error').textContent = '⚠️ Chưa cấu hình Supabase!'; return; }
 
   const code = genRoomCode();
   roomId = code;
@@ -450,14 +450,14 @@ async function joinRoom() {
   const name = document.getElementById('player-name-input').value.trim() || 'Player';
   const code = document.getElementById('room-code-input').value.trim().toUpperCase();
   if (code.length < 4) { document.getElementById('join-error').textContent = 'Nhập mã phòng hợp lệ'; return; }
-  if (!supabase) { document.getElementById('join-error').textContent = '⚠️ Chưa cấu hình Supabase!'; return; }
+  if (!sbClient) { document.getElementById('join-error').textContent = '⚠️ Chưa cấu hình Supabase!'; return; }
 
   const state = await getRoom(code);
   if (!state) { document.getElementById('join-error').textContent = '❌ Không tìm thấy phòng'; return; }
   if (state.phase !== 'lobby') { document.getElementById('join-error').textContent = '❌ Phòng đang chơi rồi'; return; }
 
   // Find empty seat
-  const emptySeat = state.seats.findIndex(s => !s.playerId);
+  const emptySeat = state.seats.findIndex(s => !s || !s.playerId);
   if (emptySeat === -1) { document.getElementById('join-error').textContent = '❌ Phòng đã đầy'; return; }
 
   roomId = code;
