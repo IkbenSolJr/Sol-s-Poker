@@ -564,9 +564,9 @@ function subscribeRoom(code) {
   channel = sbClient
     .channel('room:' + code)
     .on('postgres_changes', { event:'*', schema:'public', table:'rooms', filter:`id=eq.${code}` },
-      payload => {
+      async payload => {
         if (payload.new && payload.new.state) {
-          handleStateUpdate(payload.new.state);
+          await handleStateUpdate(payload.new.state);
         }
       })
     .subscribe();
@@ -1236,7 +1236,7 @@ function addLog(state, msg) {
 // ══════════════════════════════════════════════════
 //   STATE → UI
 // ══════════════════════════════════════════════════
-function handleStateUpdate(state) {
+async function handleStateUpdate(state) {
   GS = state;
 
   if (state.phase === 'lobby') {
