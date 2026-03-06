@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0.0">
 <title>♠ Royal Poker — Multiplayer</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♠</text></svg>">
 <style>
@@ -74,7 +74,7 @@ body{background:radial-gradient(ellipse at 50% 0%,#091a0d 0%,#040a06 70%,#020403
 #config-banner a{color:var(--gold-light);text-decoration:underline;cursor:pointer;}
 
 /* ── GAME ── */
-#game{display:none;width:100%;max-width:960px;flex-direction:column;align-items:center;gap:10px;}
+#game{display:none;width:100%;max-width:800px;flex-direction:column;align-items:center;gap:10px;}
 
 .top-bar{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;width:100%;}
 .sbox{background:rgba(0,0,0,0.35);border:1px solid var(--border-gold);border-radius:7px;padding:4px 12px;text-align:center;min-width:64px;}
@@ -82,13 +82,13 @@ body{background:radial-gradient(ellipse at 50% 0%,#091a0d 0%,#040a06 70%,#020403
 .sbox-val{font-family:'Playfair Display',serif;font-size:0.95rem;font-weight:700;color:var(--gold-light);}
 .sbox-val.g{color:#5dbe7a;}.sbox-val.r{color:#e07070;}
 
-.table-outer{width:100%;max-width:960px;position:relative;}
+.table-outer{width:100%;max-width:680px;position:relative;margin:0 auto;}
 .table{background:radial-gradient(ellipse at center,var(--felt-light) 0%,var(--felt-mid) 40%,var(--felt) 70%,#081e10 100%);border-radius:50%;border:14px solid var(--wood);box-shadow:0 0 0 3px var(--wood-light),0 0 0 6px #1f0d04,0 50px 120px rgba(0,0,0,0.97),inset 0 0 100px rgba(0,0,0,0.5);width:100%;padding-top:100%;position:relative;}
 .table::before{content:'';position:absolute;inset:0;border-radius:50%;background:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(255,255,255,0.005) 3px,rgba(255,255,255,0.005) 6px);pointer-events:none;}
 .table-inner{position:absolute;inset:0;border-radius:50%;display:flex;align-items:center;justify-content:center;}
 
-.center-info{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:6px;width:52%;max-width:340px;z-index:10;}
-.community-cards{display:flex;gap:5px;justify-content:center;flex-wrap:wrap;}
+.center-info{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:8px;width:58%;max-width:380px;z-index:10;}
+.community-cards{display:flex;gap:6px;justify-content:center;flex-wrap:nowrap;}
 .pot-pill{background:rgba(0,0,0,0.55);border:1px solid var(--border-gold);border-radius:16px;padding:4px 14px;font-family:'Playfair Display',serif;font-size:0.82rem;color:var(--gold-light);display:flex;align-items:center;gap:5px;white-space:nowrap;}
 .status-pill{background:rgba(0,0,0,0.5);border:1px solid rgba(200,151,63,0.18);border-radius:10px;padding:5px 14px;text-align:center;font-size:0.82rem;font-style:italic;color:var(--text-main);max-width:280px;width:100%;line-height:1.3;}
 .phase-pills{display:flex;gap:4px;}
@@ -105,7 +105,7 @@ body{background:radial-gradient(ellipse at 50% 0%,#091a0d 0%,#040a06 70%,#020403
 .seat[data-seat="4"]{top:72%;left:10%;}
 .seat[data-seat="5"]{top:18%;left:18%;}
 
-.seat-card{background:rgba(8,20,12,0.88);border:1.5px solid var(--border-gold);border-radius:10px;padding:5px 9px;min-width:88px;text-align:center;backdrop-filter:blur(4px);transition:all 0.3s;position:relative;}
+.seat-card{background:rgba(8,20,12,0.88);border:1.5px solid var(--border-gold);border-radius:10px;padding:6px 10px;min-width:96px;text-align:center;backdrop-filter:blur(4px);transition:all 0.3s;position:relative;}
 .seat-card.active-seat{border-color:var(--gold-light);box-shadow:0 0 14px rgba(232,196,106,0.4);}
 .seat-card.folded-seat{opacity:0.35;filter:grayscale(0.8);}
 .seat-card.is-you{border-color:rgba(93,190,122,0.5);}
@@ -113,9 +113,9 @@ body{background:radial-gradient(ellipse at 50% 0%,#091a0d 0%,#040a06 70%,#020403
 .seat-card.empty-seat{opacity:0.3;border-style:dashed;}
 .seat-card.disconnected{opacity:0.4;border-color:rgba(200,100,100,0.4);}
 
-.seat-name{font-family:'Playfair Display',serif;font-size:0.7rem;font-weight:700;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80px;}
+.seat-name{font-family:'Playfair Display',serif;font-size:0.78rem;font-weight:700;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:88px;}
 .seat-name.you-name{color:#5dbe7a;}
-.seat-chips{font-size:0.6rem;color:var(--text-dim);}
+.seat-chips{font-size:0.68rem;color:var(--text-dim);}
 .seat-bet{font-size:0.58rem;color:var(--gold);background:rgba(200,151,63,0.15);border-radius:8px;padding:1px 6px;display:none;}
 .seat-bet.show{display:inline-block;}
 .seat-hand{display:flex;gap:3px;justify-content:center;margin-top:2px;}
@@ -127,14 +127,20 @@ body{background:radial-gradient(ellipse at 50% 0%,#091a0d 0%,#040a06 70%,#020403
 .online-dot.offline{background:#888;box-shadow:none;}
 
 /* mini cards */
-.mini-card{width:20px;height:30px;background:var(--cream);border-radius:3px;border:0.5px solid #c8b89a;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.5rem;font-weight:700;line-height:1.1;box-shadow:1px 2px 4px rgba(0,0,0,0.5);}
+/* ── CARDS — dùng CSS custom property để scale đồng bộ ── */
+:root {
+  --mini-w: 28px; --mini-h: 42px; --mini-fs: 0.62rem;
+  --comm-w: 52px; --comm-h: 76px; --comm-fs: 1rem;
+}
+
+.mini-card{width:var(--mini-w);height:var(--mini-h);background:var(--cream);border-radius:4px;border:0.5px solid #c8b89a;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:var(--mini-fs);font-weight:700;line-height:1.15;box-shadow:1px 2px 5px rgba(0,0,0,0.55);}
 .mini-card.red{color:var(--red-card);}
 .mini-card.black{color:#1a1a2a;}
-.mini-card.back{background:linear-gradient(135deg,#0a1e60,#1030a0,#0a1e60);color:rgba(255,255,255,0.3);font-size:0.7rem;}
+.mini-card.back{background:linear-gradient(135deg,#0a1e60,#1030a0,#0a1e60);color:rgba(255,255,255,0.35);font-size:calc(var(--mini-fs) * 1.3);}
 .mini-card.placeholder{background:rgba(0,0,0,0.15);border:1px dashed rgba(255,255,255,0.08);}
 
 /* community cards */
-.comm-card{width:38px;height:56px;background:var(--cream);border-radius:5px;border:0.5px solid #c8b89a;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;line-height:1.1;box-shadow:1px 3px 8px rgba(0,0,0,0.6);}
+.comm-card{width:var(--comm-w);height:var(--comm-h);background:var(--cream);border-radius:6px;border:0.5px solid #c8b89a;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:var(--comm-fs);font-weight:700;line-height:1.15;box-shadow:2px 4px 10px rgba(0,0,0,0.65);}
 .comm-card.red{color:var(--red-card);}
 .comm-card.black{color:#1a1a2a;}
 .comm-card.placeholder{background:rgba(0,0,0,0.2);border:1px dashed rgba(255,255,255,0.1);}
@@ -170,10 +176,60 @@ kbd{display:inline-block;background:rgba(0,0,0,0.35);border:1px solid rgba(255,2
 .cp{position:fixed;width:8px;height:8px;border-radius:2px;animation:cf linear forwards;pointer-events:none;z-index:400;}
 @keyframes cf{0%{transform:translateY(-20px) rotate(0);opacity:1;}100%{transform:translateY(110vh) rotate(720deg);opacity:0;}}
 
+/* ── DESKTOP LARGE (>900px): bàn nhỏ lại, card lớn hơn ── */
+@media(min-width:900px){
+  :root{ --mini-w:30px; --mini-h:44px; --mini-fs:0.65rem; --comm-w:56px; --comm-h:82px; --comm-fs:1.05rem; }
+  .seat-card{ min-width:102px; padding:7px 11px; }
+}
+
+/* ── TABLET (601–899px) ── */
+@media(min-width:601px) and (max-width:899px){
+  :root{ --mini-w:26px; --mini-h:38px; --mini-fs:0.58rem; --comm-w:46px; --comm-h:68px; --comm-fs:0.9rem; }
+  .table-outer{ max-width:560px; }
+  .seat-card{ min-width:88px; padding:5px 8px; }
+  .center-info{ width:54%; }
+}
+
+/* ── MOBILE (≤600px): layout gọn, card hợp lý ── */
 @media(max-width:600px){
-  .seat-card{min-width:70px;padding:4px 6px;}
-  .comm-card{width:30px;height:44px;font-size:0.62rem;}
-  .center-info{width:46%;}
+  :root{ --mini-w:22px; --mini-h:33px; --mini-fs:0.5rem; --comm-w:36px; --comm-h:54px; --comm-fs:0.72rem; }
+
+  body{ padding:6px 4px 20px; }
+  #game{ gap:6px; }
+
+  .table-outer{ max-width:100%; }
+  .center-info{ width:50%; gap:5px; }
+
+  .top-bar{ gap:4px; }
+  .sbox{ min-width:52px; padding:3px 7px; }
+  .sbox-label{ font-size:0.5rem; }
+  .sbox-val{ font-size:0.82rem; }
+
+  .seat-card{ min-width:68px; padding:4px 6px; border-radius:7px; }
+  .seat-name{ font-size:0.65rem; max-width:64px; }
+  .seat-chips{ font-size:0.55rem; }
+  .seat-bet{ font-size:0.5rem; }
+
+  .pot-pill{ font-size:0.7rem; padding:3px 10px; }
+  .status-pill{ font-size:0.72rem; padding:4px 10px; max-width:220px; }
+  .phase-pills{ gap:2px; }
+  .pp{ font-size:0.48rem; padding:1px 5px; }
+
+  .actions{ gap:5px; }
+  .btn{ font-size:0.72rem; padding:8px 14px; }
+  .btn-fold,.btn-check,.btn-call,.btn-raise,.btn-allin{ padding:9px 12px; font-size:0.75rem; }
+  .raise-wrap input{ width:58px; font-size:0.75rem; }
+  .hotkey-hint{ display:none; }
+
+  .community-cards{ gap:3px; }
+}
+
+/* ── MOBILE NHỎ (≤380px) ── */
+@media(max-width:380px){
+  :root{ --mini-w:18px; --mini-h:27px; --mini-fs:0.43rem; --comm-w:30px; --comm-h:45px; --comm-fs:0.62rem; }
+  .seat-card{ min-width:58px; padding:3px 5px; }
+  .center-info{ width:48%; }
+  .sbox{ min-width:44px; padding:2px 5px; }
 }
 
 /* Leave button in top-bar */
@@ -663,32 +719,58 @@ function closeConfirmLeave() {
 
 async function doLeaveRoom() {
   closeConfirmLeave();
-  // Xóa phòng đã lưu khi thoát chủ động
   localStorage.removeItem('my_poker_room');
   localStorage.removeItem('my_poker_seat');
   if (!roomId) { location.reload(); return; }
 
   const state = await getRoom(roomId);
   if (state && state.seats[mySeat]?.playerId === myId) {
-    // Xóa ghế khỏi bàn
-    state.seats[mySeat] = null;
 
-    // Nếu đang chơi và host rời → chuyển host cho người tiếp theo
-    if (state.phase === 'playing' && mySeat === 0) {
-      const nextHost = state.seats.findIndex((s, i) => i > 0 && s && s.playerId);
-      // Không cần làm gì đặc biệt — isHost chỉ là client-side flag
-      // Người còn lại sẽ tự trở thành host khi reload (seat 0 trống, họ ở seat cao hơn)
-      // TODO: nếu muốn chuyển host thực sự, cần thêm field hostId vào state
-    }
+    if (state.phase === 'playing') {
+      // Đếm người còn lại TRƯỚC KHI xóa ghế mình
+      const othersAlive = state.seats.filter((s, i) => i !== mySeat && s && s.playerId && !s.eliminated && s.chips > 0);
 
-    // Nếu đang chơi và chỉ còn 1 người → kết thúc ván
-    const remaining = state.seats.filter(s => s && s.playerId && !s.eliminated);
-    if (state.phase === 'playing' && remaining.length === 1) {
-      const winner = remaining[0];
-      winner.chips += state.pot;
-      state.pot = 0;
-      addLog(state, `🏆 ${winner.name} thắng vì đối thủ rời phòng!`);
-      state.phase = 'gameover';
+      // Xóa ghế người rời
+      state.seats[mySeat] = null;
+
+      if (othersAlive.length === 1) {
+        // Còn đúng 1 người → thắng ván này, nhưng KHÔNG gameover — deal ván mới
+        const winner = othersAlive[0];
+        const pot = state.pot || 0;
+        winner.chips += pot;
+        state.pot = 0;
+        addLog(state, `🏆 ${winner.name} thắng ${pot} vì đối thủ rời phòng!`);
+
+        // Kiểm tra xem winner có đủ chip để chơi tiếp không
+        const canContinue = winner.chips > 0;
+        if (!canContinue) {
+          state.phase = 'gameover';
+        } else {
+          // Giữ phase = 'playing', reset để deal ván mới
+          state.gamePhase = -1;
+          state.actionSeat = -1;
+          state.bettingQueue = [];
+          state.community = [];
+          state.hands = {};
+          state.revealHands = null;
+          // Winner tự là host cho ván tiếp (hostId = playerId)
+          state.hostId = winner.playerId;
+        }
+      } else if (othersAlive.length === 0) {
+        // Không còn ai → gameover thật
+        state.seats[mySeat] = null;
+        state.phase = 'gameover';
+      } else {
+        // Còn nhiều người → chỉ xóa ghế, game tiếp tục
+        // Nếu đang là lượt mình, bỏ qua turn
+        if (state.actionSeat === mySeat) {
+          state.bettingQueue = (state.bettingQueue || []).filter(s => s !== mySeat);
+          state.actionSeat = state.bettingQueue[0] ?? -1;
+        }
+      }
+    } else {
+      // Lobby hoặc gameover → chỉ xóa ghế
+      state.seats[mySeat] = null;
     }
 
     await setRoom(roomId, state);
@@ -769,9 +851,21 @@ async function hostDealHand(state) {
   state.deck = shuffle(makeDeck());
   state.community = [];
   state.hands = {};
+  state.revealHands = null;
   state.pot = 0;
   state.currentBet = 0;
   state.bettingQueue = [];
+  state.gamePhase = 0;
+
+  // Reset trạng thái từng người từ ván trước
+  state.seats.forEach(s => {
+    if (s) {
+      s.folded = false;
+      s.allIn = false;
+      s.bet = 0;
+      s.eliminated = s.chips <= 0;
+    }
+  });
 
   // Rotate dealer
   const aliveSeats = alive.map(s=>s.seat);
@@ -893,16 +987,37 @@ function applyPlayerAction(state, seat, action, raiseAmt) {
 }
 
 async function advanceGame(state) {
-  // Check only-one-left
+  // Check only-one-left (fold win)
   const notFolded = state.seats.map((s,i)=>({...s,seat:i})).filter(s=>s&&!s.folded&&s.chips>=0&&!s.eliminated);
   if (notFolded.length === 1) {
-    notFolded[0].chips += state.pot;
-    addLog(state, `${notFolded[0].name} thắng nồi ${state.pot} (tất cả fold)`);
+    const winner = notFolded[0];
+    winner.chips += state.pot;
+    addLog(state, `🏆 ${winner.name} thắng ${state.pot} (tất cả fold)`);
     state.pot = 0;
     state.actionSeat = -1;
     state.gamePhase = 4;
     SFX.win();
+
+    // Kiểm tra loại người (hết chip sau khi fold)
+    state.seats.forEach(s => { if (s && s.chips <= 0) s.eliminated = true; });
+    const stillAlive = state.seats.filter(s => s && !s.eliminated && s.chips > 0);
+
+    if (stillAlive.length < 2) {
+      state.phase = 'gameover';
+    }
+
     await setRoom(roomId, state);
+
+    // Auto deal ván mới sau 4 giây (host only) — giống doShowdown
+    if (isHost && stillAlive.length >= 2) {
+      setTimeout(async () => {
+        const fresh = await getRoom(roomId);
+        if (fresh && fresh.phase === 'playing') {
+          fresh.revealHands = null;
+          await hostDealHand(fresh);
+        }
+      }, 4000);
+    }
     return;
   }
 
@@ -1005,9 +1120,8 @@ async function doShowdown(state) {
   const stillAlive = state.seats.filter(s=>s&&!s.eliminated&&s.chips>0);
   if (stillAlive.length < 2) {
     state.phase = 'gameover';
-    // Xóa phòng đã lưu vì ván đã kết thúc
-    localStorage.removeItem('my_poker_room');
-    localStorage.removeItem('my_poker_seat');
+    // Chỉ xóa localStorage khi hết chip thật sự (không phải rời phòng)
+    // doLeaveRoom sẽ tự xóa khi người chơi rời chủ động
   }
 
   await setRoom(roomId, state);
@@ -1045,6 +1159,13 @@ function handleStateUpdate(state) {
     document.getElementById('game').style.display = 'flex';
   }
 
+  // Cập nhật isHost nếu hostId thay đổi (sau khi đối thủ rời phòng)
+  if (state.hostId && state.hostId === myId) {
+    isHost = true;
+  } else if (state.hostId && state.hostId !== myId) {
+    isHost = false;
+  }
+
   // Host tự động xử lý trường hợp tất cả all-in nhưng showdown chưa chạy
   // (state bị kẹt ở gamePhase <= 3, actionSeat = -1, community >= 5 lá)
   if (isHost && state.phase === 'playing' && (state.gamePhase || 0) < 4) {
@@ -1067,6 +1188,27 @@ function handleStateUpdate(state) {
   if (state.phase === 'gameover') {
     showGameOverScreen(state);
     return;
+  }
+
+  // Sau khi đối thủ rời phòng: người còn lại (hostId) tự deal ván mới
+  if (state.phase === 'playing' && state.gamePhase === -1 && state.hostId === myId) {
+    console.log('[HOST] Opponent left, dealing new hand...');
+    setTimeout(async () => {
+      const fresh = await getRoom(roomId);
+      if (fresh && fresh.phase === 'playing' && fresh.gamePhase === -1) {
+        fresh.hostId = null;
+        await hostDealHand(fresh);
+      }
+    }, 3000);
+  }
+
+  // Ván mới bắt đầu → tự đóng result overlay nếu đang mở
+  if (state.phase === 'playing' && (state.gamePhase === 0 || state.gamePhase === -1)) {
+    const overlay = document.getElementById('result-overlay');
+    if (overlay && overlay.classList.contains('show')) {
+      overlay.classList.remove('show');
+      _resultShown = false;
+    }
   }
 
   renderGame(state);
@@ -1112,8 +1254,20 @@ function showGameOverScreen(state) {
     </div>`;
   }).join('');
 
-  // Nút host có thể chơi lại (tạo phòng mới)
-  goActions.innerHTML = `<button class="btn btn-gold" onclick="doLeaveRoom()" style="font-size:0.9rem;">← Về sảnh</button>`;
+  // Nút tùy theo tình huống
+  const myChips = me?.chips ?? 0;
+  const othersSurvived = state.seats.filter(s => s && s.playerId && s.playerId !== myId && s.chips > 0);
+
+  if (iWon && othersSurvived.length > 0) {
+    // Thắng nhưng vẫn còn đối thủ — chơi tiếp
+    goActions.innerHTML = `<button class="btn btn-gold" onclick="doLeaveRoom()" style="font-size:0.9rem;">← Về sảnh</button>`;
+  } else if (iWon) {
+    // Thắng tất cả — chỉ về sảnh
+    goActions.innerHTML = `<button class="btn btn-gold" onclick="doLeaveRoom()" style="font-size:0.9rem;">← Về sảnh</button>`;
+  } else {
+    // Thua — về sảnh
+    goActions.innerHTML = `<button class="btn btn-gold" onclick="doLeaveRoom()" style="font-size:0.9rem;">← Về sảnh</button>`;
+  }
 
   document.getElementById('gameover-overlay').classList.add('show');
 }
@@ -1276,65 +1430,81 @@ function renderActionsUI(state) {
 }
 
 let _resultShown = false;
+let _resultRound = -1; // tránh show lại cùng 1 ván
 function showResultIfNeeded(state) {
-  if (_resultShown) return;
+  // Mỗi ván chỉ show 1 lần (theo round number)
+  const currentRound = state.round || 0;
+  if (_resultShown && _resultRound === currentRound) return;
   _resultShown = true;
-  setTimeout(() => { _resultShown = false; }, 8000);
+  _resultRound = currentRound;
 
   const me = state.seats?.[mySeat];
   if (!me) return;
 
-  // Dùng revealHands nếu có (sau doShowdown), hoặc dùng hands thông thường (trường hợp all-in chưa qua doShowdown)
-  const handsSource = state.revealHands || state.hands || {};
-  const community = state.community || [];
-
-  // Lấy tất cả người chưa fold có bài
-  const contenders = state.seats.map((s,i)=>({...s,seat:i})).filter(s=>s && !s.folded && handsSource[s.playerId]);
-
-  if (contenders.length === 0) return; // Không có bài để so sánh
-
-  // Tính best hand cho từng người
-  contenders.forEach(p => {
-    const hand = handsSource[p.playerId] || [];
-    p._best = bestOf7(hand, community);
-  });
-
-  // Xác định người thắng
-  contenders.sort((a,b) => a._best.rank !== b._best.rank ? b._best.rank - a._best.rank : cmpTb(b._best.tb, a._best.tb));
-  const topRank = contenders[0]._best.rank;
-  const topTb = contenders[0]._best.tb;
-  const winners = contenders.filter(p => p._best.rank === topRank && cmpTb(p._best.tb, topTb) === 0);
-
-  const myContender = contenders.find(p => p.playerId === myId);
-  const isMyWin = myContender && winners.some(w => w.playerId === myId);
-
-  // Kiểm tra trong log trước (nếu doShowdown đã chạy)
-  const winLog = (state.log||[]).find(l=>l.includes('🏆'));
+  // Ưu tiên đọc kết quả từ log — chính xác nhất cho mọi trường hợp (fold, showdown, all-in)
+  const winLog = (state.log||[]).find(l => l.includes('🏆') && l.includes(`ván ${currentRound || ''}`).toString() || l.includes('🏆'));
   const isMyWinFromLog = winLog ? winLog.includes(me.name) : null;
 
-  // Ưu tiên log nếu có, nếu không tự tính
-  const finalIsWin = isMyWinFromLog !== null ? isMyWinFromLog : isMyWin;
+  // Nếu là fold-win (người kia fold, không có revealHands)
+  const isFoldWin = state.gamePhase === 4 && !state.revealHands;
 
-  let type = finalIsWin ? 'win' : 'lose';
-  let title = finalIsWin ? '🏆 Bạn Thắng!' : '😞 Thua Ván Này';
+  let finalIsWin;
+  let detail = '';
 
-  // Build hand reveal HTML — hiển thị bài của tất cả người chơi
-  let detail = contenders.map(p => {
-    const hand = handsSource[p.playerId] || [];
-    const best = p._best;
-    const isW = winners.some(w => w.playerId === p.playerId);
-    const cardStr = hand.map(c => `<span style="color:${['♥','♦'].includes(c.s)?'#ff6b6b':'#e8e8e8'}">${c.r+c.s}</span>`).join(' ');
-    return `<div style="margin:6px 0;padding:6px 8px;background:rgba(255,255,255,0.05);border-radius:6px;border:1px solid ${isW?'rgba(255,215,0,0.4)':'rgba(255,255,255,0.1)'}">
-      <strong>${p.avatar||''} ${p.name}</strong>${isW?' 🏆':''}<br>
-      <span style="font-size:0.85rem;font-weight:600;color:${isW?'#ffd700':'#a0cfff'}">${best.name}</span><br>
-      <span style="font-size:0.75rem;letter-spacing:2px">${cardStr}</span>
-    </div>`;
-  }).join('');
+  if (isFoldWin) {
+    // Fold win: xác định winner từ log
+    finalIsWin = isMyWinFromLog !== null ? isMyWinFromLog : false;
+
+    // Hiển thị ai fold, ai thắng
+    const allSeats = state.seats.map((s,i)=>({...s,seat:i})).filter(s=>s&&s.playerId);
+    detail = allSeats.map(p => {
+      const isWinner = winLog && winLog.includes(p.name);
+      const isFolded = p.folded;
+      return `<div style="margin:6px 0;padding:6px 8px;background:rgba(255,255,255,0.05);border-radius:6px;border:1px solid ${isWinner?'rgba(255,215,0,0.4)':'rgba(255,255,255,0.1)'}">
+        <strong>${p.avatar||''} ${p.name}</strong>${isWinner?' 🏆':''}${isFolded?' <span style="color:#e07070;font-size:0.8rem">(Fold)</span>':''}<br>
+        <span style="font-size:0.82rem;color:${isWinner?'#ffd700':'#a0a0a0'}">🪙 ${p.chips} chips</span>
+      </div>`;
+    }).join('');
+
+  } else {
+    // Showdown: dùng revealHands hoặc hands
+    const handsSource = state.revealHands || state.hands || {};
+    const community = state.community || [];
+    const contenders = state.seats.map((s,i)=>({...s,seat:i})).filter(s=>s && !s.folded && handsSource[s.playerId]);
+
+    if (contenders.length === 0) return;
+
+    contenders.forEach(p => { p._best = bestOf7(handsSource[p.playerId]||[], community); });
+    contenders.sort((a,b) => a._best.rank!==b._best.rank ? b._best.rank-a._best.rank : cmpTb(b._best.tb,a._best.tb));
+    const topRank = contenders[0]._best.rank;
+    const topTb   = contenders[0]._best.tb;
+    const winners = contenders.filter(p => p._best.rank===topRank && cmpTb(p._best.tb,topTb)===0);
+
+    const myContender = contenders.find(p => p.playerId === myId);
+    const isMyWinCalc  = myContender && winners.some(w => w.playerId === myId);
+    finalIsWin = isMyWinFromLog !== null ? isMyWinFromLog : isMyWinCalc;
+
+    detail = contenders.map(p => {
+      const hand = handsSource[p.playerId] || [];
+      const isW  = winners.some(w => w.playerId === p.playerId);
+      const cardStr = hand.map(c =>
+        `<span style="color:${['♥','♦'].includes(c.s)?'#ff6b6b':'#e8e8e8'}">${c.r+c.s}</span>`
+      ).join(' ');
+      return `<div style="margin:6px 0;padding:6px 8px;background:rgba(255,255,255,0.05);border-radius:6px;border:1px solid ${isW?'rgba(255,215,0,0.4)':'rgba(255,255,255,0.1)'}">
+        <strong>${p.avatar||''} ${p.name}</strong>${isW?' 🏆':''}<br>
+        <span style="font-size:0.85rem;font-weight:600;color:${isW?'#ffd700':'#a0cfff'}">${p._best.name}</span><br>
+        <span style="font-size:0.75rem;letter-spacing:2px">${cardStr}</span>
+      </div>`;
+    }).join('');
+  }
+
+  const type  = finalIsWin ? 'win' : 'lose';
+  const title = finalIsWin ? '🏆 Bạn Thắng!' : '😞 Thua Ván Này';
 
   document.getElementById('r-title').textContent = title;
-  document.getElementById('r-title').className = 'modal-title mt-'+type;
-  document.getElementById('r-sub').textContent = `Chips: ${me.chips}`;
-  document.getElementById('r-detail').innerHTML = detail || (winLog||'');
+  document.getElementById('r-title').className   = 'modal-title mt-'+type;
+  document.getElementById('r-sub').textContent   = `Chips: ${me.chips}`;
+  document.getElementById('r-detail').innerHTML  = detail || (winLog||'');
   document.getElementById('result-overlay').classList.add('show');
 
   if (finalIsWin) { SFX.win(); confetti(); } else SFX.lose();
@@ -1342,6 +1512,7 @@ function showResultIfNeeded(state) {
 
 function closeResult() {
   document.getElementById('result-overlay').classList.remove('show');
+  _resultShown = false; // reset để ván mới có thể show lại
 }
 
 // ── Toast notification ──
