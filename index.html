@@ -367,9 +367,10 @@ kbd{display:inline-block;background:rgba(0,0,0,0.35);border:1px solid rgba(255,2
     <div class="modal-sub" id="r-sub"></div>
     <div class="modal-detail" id="r-detail"></div>
     <div style="display:flex;gap:10px;margin-top:14px;justify-content:center;flex-wrap:wrap;">
-      <button class="btn btn-deal" onclick="closeResult()">Tiếp tục →</button>
+      <button class="btn btn-deal" id="r-continue-btn" onclick="playerReadyNext()">Tiếp tục →</button>
       <button class="btn" onclick="confirmLeave()" style="background:rgba(255,80,80,0.15);border-color:rgba(255,100,100,0.4);color:#ff9090;font-size:0.8rem;">✕ Rời phòng</button>
     </div>
+    <div id="r-waiting" style="margin-top:10px;font-size:0.78rem;color:var(--text-dim);font-style:italic;min-height:1.2em;"></div>
   </div>
 </div>
 
@@ -1065,10 +1066,8 @@ async function advanceGame(state) {
       state.phase = 'gameover';
     }
 
-    // Đánh dấu thời điểm deal ván mới (bất kỳ client nào cũng có thể trigger)
-    if (stillAlive.length >= 2) {
-      state.nextDealAt = Date.now() + 4000;
-    }
+    // Reset ready list — chờ người chơi bấm Tiếp tục
+    state.readyForNext = [];
     await setRoom(roomId, state);
     return;
   }
@@ -1225,10 +1224,8 @@ async function doShowdown(state) {
     // doLeaveRoom sẽ tự xóa khi người chơi rời chủ động
   }
 
-  // Đánh dấu thời điểm deal ván mới (bất kỳ client nào cũng có thể trigger)
-  if (stillAlive.length >= 2) {
-    state.nextDealAt = Date.now() + 5000;
-  }
+  // Reset ready list cho ván mới
+  state.readyForNext = [];
   await setRoom(roomId, state);
 }
 
@@ -1239,8 +1236,6 @@ function addLog(state, msg) {
 // ══════════════════════════════════════════════════
 //   STATE → UI
 // ══════════════════════════════════════════════════
-let _dealScheduled = false; // tránh schedule deal nhiều lần
-
 function handleStateUpdate(state) {
   GS = state;
 
@@ -1259,33 +1254,26 @@ function handleStateUpdate(state) {
   if (state.hostId && state.hostId === myId) isHost = true;
   else if (state.hostId && state.hostId !== myId) isHost = false;
 
-  // ── AUTO DEAL VÁN MỚI (bất kỳ client nào cũng có thể trigger) ──
-  // Dùng nextDealAt timestamp thay vì isHost — client nào nhận state trước sẽ deal
-  if (state.nextDealAt && state.phase === 'playing' && !_dealScheduled) {
-    const delay = Math.max(0, state.nextDealAt - Date.now());
-    _dealScheduled = true;
-    setTimeout(async () => {
-      _dealScheduled = false;
-      const fresh = await getRoom(roomId);
-      if (!fresh || fresh.phase !== 'playing' || !fresh.nextDealAt) return;
-      // "First writer wins": xóa nextDealAt trước khi deal để client khác không deal lại
-      fresh.nextDealAt = null;
-      fresh.revealHands = null;
-      await hostDealHand(fresh);
-    }, delay);
+  // ── Cập nhật trạng thái chờ trong result modal (nếu đang mở) ──
+  if (state.gamePhase === 4 && document.getElementById('result-overlay')?.classList.contains('show')) {
+    updateReadyStatus(state);
+    // Nếu readyForNext đã null (deal xong) thì đóng modal
+    if (state.readyForNext === null && state.gamePhase !== 4) {
+      document.getElementById('result-overlay').classList.remove('show');
+      _resultShown = false;
+    }
   }
 
   // ── STUCK ALL-IN: mọi client đều có thể phát hiện và fix ──
-  if (state.phase === 'playing' && (state.gamePhase || 0) < 4 && !state.nextDealAt) {
+  if (state.phase === 'playing' && (state.gamePhase || 0) < 4) {
     const everyoneAllInOrFolded = state.seats.every(s => !s || s.folded || s.allIn || s.chips === 0);
     const communityFull = (state.community || []).length === 5;
     const noAction = state.actionSeat === -1 && (state.bettingQueue || []).length === 0;
     if (everyoneAllInOrFolded && communityFull && noAction && !state.revealHands) {
-      // Jitter ngẫu nhiên để tránh nhiều client cùng gọi doShowdown
       const jitter = Math.random() * 800;
       setTimeout(async () => {
         const fresh = await getRoom(roomId);
-        if (fresh && fresh.phase === 'playing' && (fresh.gamePhase || 0) < 4 && !fresh.revealHands && !fresh.nextDealAt) {
+        if (fresh && fresh.phase === 'playing' && (fresh.gamePhase || 0) < 4 && !fresh.revealHands) {
           await doShowdown(fresh);
         }
       }, 400 + jitter);
@@ -1303,19 +1291,32 @@ function handleStateUpdate(state) {
     }, 3000);
   }
 
+  // Recovery: state cũ bị kẹt gamePhase=4 nhưng chưa có readyForNext
+  // Chỉ chạy 1 lần (người đầu tiên nhận) để set readyForNext = []
+  if (state.phase === 'playing' && state.gamePhase === 4 &&
+      state.readyForNext === undefined && state.revealHands) {
+    // Patch state trong DB để kích hoạt ready flow
+    const patch = await getRoom(roomId);
+    if (patch && patch.gamePhase === 4 && patch.readyForNext === undefined) {
+      patch.readyForNext = [];
+      await setRoom(roomId, patch);
+    }
+    // Vẫn render bình thường
+  }
+
   // Game Over
   if (state.phase === 'gameover') {
     showGameOverScreen(state);
     return;
   }
 
-  // Ván mới → đóng result overlay
+  // Ván mới (gamePhase=0) → đóng result overlay, reset flags
   if (state.phase === 'playing' && state.gamePhase === 0) {
     const overlay = document.getElementById('result-overlay');
     if (overlay && overlay.classList.contains('show')) {
       overlay.classList.remove('show');
-      _resultShown = false;
     }
+    _resultShown = false;
     _resultRound = -1;
   }
 
@@ -1541,6 +1542,7 @@ function renderActionsUI(state) {
 
 let _resultShown = false;
 let _resultRound = -1;
+
 function showResultIfNeeded(state) {
   const currentRound = state.round || 0;
   if (_resultShown && _resultRound === currentRound) return;
@@ -1548,70 +1550,51 @@ function showResultIfNeeded(state) {
   const me = state.seats?.[mySeat];
   if (!me) return;
 
-  // Validate dữ liệu TRƯỚC khi lock — tránh khóa rồi thoát sớm
   const isFoldWin = state.gamePhase === 4 && !state.revealHands;
   const handsSource = state.revealHands || state.hands || {};
-  const contenders = isFoldWin ? [] :
-    state.seats.map((s,i)=>({...s,seat:i})).filter(s=>s && !s.folded && handsSource[s.playerId]);
-  if (!isFoldWin && contenders.length === 0) return; // không có dữ liệu, chưa lock
 
-  // Dữ liệu đủ → lock
+  // Validate data trước khi lock
+  if (!isFoldWin) {
+    const contendersCheck = state.seats.filter(s => s && !s.folded && handsSource[s.playerId]);
+    if (contendersCheck.length === 0) return;
+  }
+
+  // Lock
   _resultShown = true;
   _resultRound = currentRound;
 
-  // Tìm winLog: chỉ tìm trong log của ván hiện tại (5 log gần nhất)
-  // Dùng playerId match để tránh nhầm tên tương tự
   const recentLogs = (state.log||[]).slice(0, 10);
   const winLog = recentLogs.find(l => l.includes('🏆'));
-  // Dùng playerId để xác định chắc hơn tên
-  const myName = me.name;
-  const isMyWinFromLog = winLog ? winLog.includes(myName) : null;
+  const isMyWinFromLog = winLog ? winLog.includes(me.name) : null;
 
-  // Nếu là fold-win (người kia fold, không có revealHands)
-  const isFoldWin = state.gamePhase === 4 && !state.revealHands;
-
-  let finalIsWin;
+  let finalIsWin = false;
   let detail = '';
 
   if (isFoldWin) {
-    // Fold win: xác định winner từ log
     finalIsWin = isMyWinFromLog !== null ? isMyWinFromLog : false;
-
-    // Hiển thị ai fold, ai thắng
     const allSeats = state.seats.map((s,i)=>({...s,seat:i})).filter(s=>s&&s.playerId);
     detail = allSeats.map(p => {
       const isWinner = winLog && winLog.includes(p.name);
-      const isFolded = p.folded;
       return `<div style="margin:6px 0;padding:6px 8px;background:rgba(255,255,255,0.05);border-radius:6px;border:1px solid ${isWinner?'rgba(255,215,0,0.4)':'rgba(255,255,255,0.1)'}">
-        <strong>${p.avatar||''} ${p.name}</strong>${isWinner?' 🏆':''}${isFolded?' <span style="color:#e07070;font-size:0.8rem">(Fold)</span>':''}<br>
+        <strong>${p.avatar||''} ${p.name}</strong>${isWinner?' 🏆':''}${p.folded?' <span style="color:#e07070;font-size:0.8rem">(Fold)</span>':''}<br>
         <span style="font-size:0.82rem;color:${isWinner?'#ffd700':'#a0a0a0'}">🪙 ${p.chips} chips</span>
       </div>`;
     }).join('');
-
   } else {
-    // Showdown: dùng revealHands hoặc hands
-    const handsSource = state.revealHands || state.hands || {};
     const community = state.community || [];
     const contenders = state.seats.map((s,i)=>({...s,seat:i})).filter(s=>s && !s.folded && handsSource[s.playerId]);
-
-    if (contenders.length === 0) return;
-
     contenders.forEach(p => { p._best = bestOf7(handsSource[p.playerId]||[], community); });
     contenders.sort((a,b) => a._best.rank!==b._best.rank ? b._best.rank-a._best.rank : cmpTb(b._best.tb,a._best.tb));
     const topRank = contenders[0]._best.rank;
     const topTb   = contenders[0]._best.tb;
     const winners = contenders.filter(p => p._best.rank===topRank && cmpTb(p._best.tb,topTb)===0);
-
     const myContender = contenders.find(p => p.playerId === myId);
-    const isMyWinCalc  = myContender && winners.some(w => w.playerId === myId);
+    const isMyWinCalc = myContender && winners.some(w => w.playerId === myId);
     finalIsWin = isMyWinFromLog !== null ? isMyWinFromLog : isMyWinCalc;
-
     detail = contenders.map(p => {
       const hand = handsSource[p.playerId] || [];
-      const isW  = winners.some(w => w.playerId === p.playerId);
-      const cardStr = hand.map(c =>
-        `<span style="color:${['♥','♦'].includes(c.s)?'#ff6b6b':'#e8e8e8'}">${c.r+c.s}</span>`
-      ).join(' ');
+      const isW = winners.some(w => w.playerId === p.playerId);
+      const cardStr = hand.map(c => `<span style="color:${['♥','♦'].includes(c.s)?'#ff6b6b':'#e8e8e8'}">${c.r+c.s}</span>`).join(' ');
       return `<div style="margin:6px 0;padding:6px 8px;background:rgba(255,255,255,0.05);border-radius:6px;border:1px solid ${isW?'rgba(255,215,0,0.4)':'rgba(255,255,255,0.1)'}">
         <strong>${p.avatar||''} ${p.name}</strong>${isW?' 🏆':''}<br>
         <span style="font-size:0.85rem;font-weight:600;color:${isW?'#ffd700':'#a0cfff'}">${p._best.name}</span><br>
@@ -1620,21 +1603,73 @@ function showResultIfNeeded(state) {
     }).join('');
   }
 
-  const type  = finalIsWin ? 'win' : 'lose';
-  const title = finalIsWin ? '🏆 Bạn Thắng!' : '😞 Thua Ván Này';
-
-  document.getElementById('r-title').textContent = title;
-  document.getElementById('r-title').className   = 'modal-title mt-'+type;
-  document.getElementById('r-sub').textContent   = `Chips: ${me.chips}`;
-  document.getElementById('r-detail').innerHTML  = detail || (winLog||'');
+  document.getElementById('r-title').textContent = finalIsWin ? '🏆 Bạn Thắng!' : '😞 Thua Ván Này';
+  document.getElementById('r-title').className   = 'modal-title mt-' + (finalIsWin ? 'win' : 'lose');
+  document.getElementById('r-sub').textContent   = `Chips của bạn: ${me.chips}`;
+  document.getElementById('r-detail').innerHTML  = detail;
+  document.getElementById('r-continue-btn').disabled = false;
+  document.getElementById('r-continue-btn').textContent = 'Tiếp tục →';
   document.getElementById('result-overlay').classList.add('show');
-
+  updateReadyStatus(state); // cập nhật trạng thái chờ ngay
   if (finalIsWin) { SFX.win(); confetti(); } else SFX.lose();
+}
+
+// Người chơi bấm "Tiếp tục" → ghi vào readyForNext
+async function playerReadyNext() {
+  const btn = document.getElementById('r-continue-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Đang chờ...'; }
+
+  const state = await getRoom(roomId);
+  if (!state) return;
+
+  // Thêm myId vào readyForNext nếu chưa có
+  if (!state.readyForNext) state.readyForNext = [];
+  if (!state.readyForNext.includes(myId)) {
+    state.readyForNext.push(myId);
+  }
+
+  // Đếm số người cần ready (còn trong ván, không bị eliminated)
+  const activePlayers = state.seats.filter(s => s && s.playerId && !s.eliminated);
+  const allReady = activePlayers.every(s => state.readyForNext.includes(s.playerId));
+
+  if (allReady) {
+    // Tất cả đã sẵn sàng → deal ván mới ngay
+    state.readyForNext = null;
+    state.revealHands  = null;
+    await hostDealHand(state);
+  } else {
+    await setRoom(roomId, state);
+  }
+}
+
+// Cập nhật UI "Đang chờ X, Y..."
+function updateReadyStatus(state) {
+  const el = document.getElementById('r-waiting');
+  if (!el) return;
+  if (!state.readyForNext && state.gamePhase !== 4) { el.textContent = ''; return; }
+
+  const ready = state.readyForNext || [];
+  const activePlayers = (state.seats||[]).filter(s => s && s.playerId && !s.eliminated);
+  if (activePlayers.length === 0) { el.textContent = ''; return; }
+
+  const waiting = activePlayers.filter(s => !ready.includes(s.playerId));
+
+  if (waiting.length === 0) {
+    el.textContent = '✅ Tất cả đã sẵn sàng, đang chia bài...';
+  } else {
+    const names = waiting.map(s => s.avatar + ' ' + s.name).join(', ');
+    const readyNames = activePlayers.filter(s => ready.includes(s.playerId)).map(s => s.name);
+    if (readyNames.length > 0) {
+      el.textContent = `✅ ${readyNames.join(', ')} đã sẵn sàng · ⏳ Chờ: ${names}`;
+    } else {
+      el.textContent = `⏳ Đang chờ: ${names}`;
+    }
+  }
 }
 
 function closeResult() {
   document.getElementById('result-overlay').classList.remove('show');
-  _resultShown = false; // reset để ván mới có thể show lại
+  _resultShown = false;
 }
 
 // ── Toast notification ──
