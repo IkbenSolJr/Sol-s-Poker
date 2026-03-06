@@ -340,7 +340,7 @@ function initAvatarPicker() {
   el.innerHTML = AVATARS.map(a =>
     `<span onclick="selectAvatar('${a}')" id="av-${a}" style="font-size:1.5rem;cursor:pointer;padding:4px;border-radius:6px;transition:all 0.15s;" title="${a}">${a}</span>`
   ).join('');
-  highlightAvatar(myAvatar);
+  highlightAvatar(myAvatar); // myAvatar đã được restore từ localStorage bên trên
 }
 function selectAvatar(a) { myAvatar = a; highlightAvatar(a); }
 function highlightAvatar(a) {
@@ -386,6 +386,58 @@ if (DEFAULT_CONFIG.url && DEFAULT_CONFIG.key) {
 function genId() { return Math.random().toString(36).slice(2,10); }
 myId = localStorage.getItem('my_poker_id') || genId();
 localStorage.setItem('my_poker_id', myId);
+
+// ── Restore saved name & avatar ──
+const savedName = localStorage.getItem('my_poker_name');
+const savedAvatar = localStorage.getItem('my_poker_avatar');
+if (savedName) {
+  const nameInput = document.getElementById('player-name-input');
+  if (nameInput) nameInput.value = savedName;
+}
+if (savedAvatar && AVATARS.includes(savedAvatar)) {
+  myAvatar = savedAvatar;
+}
+
+// ── Auto rejoin: nếu có phòng đang chơi dở ──
+(async function tryAutoRejoin() {
+  const lastRoom = localStorage.getItem('my_poker_room');
+  const lastSeat = localStorage.getItem('my_poker_seat');
+  if (!lastRoom || lastSeat === null || !sbClient) return;
+
+  const state = await getRoom(lastRoom);
+  if (!state || state.phase === 'lobby') {
+    // Phòng không tồn tại hoặc chưa bắt đầu → xóa lưu
+    localStorage.removeItem('my_poker_room');
+    localStorage.removeItem('my_poker_seat');
+    return;
+  }
+
+  // Kiểm tra myId có trong bàn không
+  const seatIdx = state.seats.findIndex(s => s && s.playerId === myId);
+  if (seatIdx === -1) {
+    localStorage.removeItem('my_poker_room');
+    localStorage.removeItem('my_poker_seat');
+    return;
+  }
+
+  // ✅ Tìm thấy — tự rejoin
+  console.log('[REJOIN] Rejoining room', lastRoom, 'seat', seatIdx);
+  roomId = lastRoom;
+  mySeat = seatIdx;
+  isHost = seatIdx === 0;
+
+  // Đánh dấu online lại
+  state.seats[seatIdx].online = true;
+  await setRoom(roomId, state);
+  subscribeRoom(roomId);
+
+  // Ẩn lobby, hiện game ngay
+  document.getElementById('lobby').style.display = 'none';
+  document.getElementById('game').style.display = 'flex';
+  handleStateUpdate(state);
+
+  showToast(`♻️ Đã kết nối lại phòng ${lastRoom}`);
+})();
 
 // ── Room code ──
 function genRoomCode() {
@@ -435,6 +487,10 @@ async function createRoom() {
 
   if (!sbClient) { document.getElementById('join-error').textContent = '⚠️ Chưa cấu hình Supabase!'; return; }
 
+  // Lưu tên & avatar để dùng lại lần sau
+  localStorage.setItem('my_poker_name', name);
+  localStorage.setItem('my_poker_avatar', myAvatar);
+
   const code = genRoomCode();
   roomId = code;
   isHost = true;
@@ -443,6 +499,9 @@ async function createRoom() {
   const initialState = buildInitialRoomState(code, maxPlayers, startChips, name, myId, myAvatar);
   await setRoom(code, initialState);
   subscribeRoom(code);
+  // Lưu phòng để tự rejoin khi cần
+  localStorage.setItem('my_poker_room', code);
+  localStorage.setItem('my_poker_seat', 0);
   showWaitingRoom(initialState);
 }
 
@@ -454,11 +513,35 @@ async function joinRoom() {
 
   const state = await getRoom(code);
   if (!state) { document.getElementById('join-error').textContent = '❌ Không tìm thấy phòng'; return; }
+
+  // Kiểm tra nếu người chơi đã có trong phòng này (reconnect thủ công)
+  const existingSeat = state.seats.findIndex(s => s && s.playerId === myId);
+  if (existingSeat !== -1) {
+    roomId = code;
+    mySeat = existingSeat;
+    isHost = existingSeat === 0;
+    state.seats[existingSeat].online = true;
+    await setRoom(code, state);
+    subscribeRoom(code);
+    localStorage.setItem('my_poker_name', state.seats[existingSeat].name);
+    localStorage.setItem('my_poker_avatar', state.seats[existingSeat].avatar);
+    localStorage.setItem('my_poker_room', code);
+    localStorage.setItem('my_poker_seat', existingSeat);
+    if (state.phase === 'lobby') { showWaitingRoom(state); } 
+    else { document.getElementById('lobby').style.display='none'; document.getElementById('game').style.display='flex'; handleStateUpdate(state); }
+    showToast('♻️ Đã kết nối lại phòng!');
+    return;
+  }
+
   if (state.phase !== 'lobby') { document.getElementById('join-error').textContent = '❌ Phòng đang chơi rồi'; return; }
 
   // Find empty seat
   const emptySeat = state.seats.findIndex(s => !s || !s.playerId);
   if (emptySeat === -1) { document.getElementById('join-error').textContent = '❌ Phòng đã đầy'; return; }
+
+  // Lưu tên & avatar
+  localStorage.setItem('my_poker_name', name);
+  localStorage.setItem('my_poker_avatar', myAvatar);
 
   roomId = code;
   mySeat = emptySeat;
@@ -468,6 +551,9 @@ async function joinRoom() {
   state.seats[emptySeat] = { playerId: myId, name, avatar: myAvatar, chips: state.startChips, online: true };
   await setRoom(code, state);
   subscribeRoom(code);
+  // Lưu phòng để tự rejoin khi cần
+  localStorage.setItem('my_poker_room', code);
+  localStorage.setItem('my_poker_seat', emptySeat);
   showWaitingRoom(state);
 }
 
@@ -518,6 +604,9 @@ function updateWaitingRoom(state) {
 }
 
 async function leaveRoom() {
+  // Xóa phòng đã lưu khi thoát chủ động
+  localStorage.removeItem('my_poker_room');
+  localStorage.removeItem('my_poker_seat');
   if (!roomId) { location.reload(); return; }
   const state = await getRoom(roomId);
   if (state && state.seats[mySeat]?.playerId === myId) {
@@ -774,6 +863,26 @@ async function advanceGame(state) {
   const firstSeat = aliveSeats[(dIdx+1)%aliveSeats.length];
   state.bettingQueue = buildQueue(aliveSeats, firstSeat, state);
   state.actionSeat = state.bettingQueue[0] ?? -1;
+
+  // Nếu tất cả đều all-in (không có ai cần bet), tiến thẳng đến showdown
+  if (state.bettingQueue.length === 0) {
+    if (state.gamePhase >= 3) {
+      // Đã deal đủ 5 lá community → showdown ngay
+      await doShowdown(state);
+      return;
+    } else {
+      // Còn lá community cần deal → save state rồi advance tiếp
+      await setRoom(roomId, state);
+      setTimeout(async () => {
+        const fresh = await getRoom(roomId);
+        if (fresh && fresh.phase === 'playing' && fresh.gamePhase < 4) {
+          await advanceGame(fresh);
+        }
+      }, 1200);
+      return;
+    }
+  }
+
   await setRoom(roomId, state);
 }
 
@@ -811,6 +920,9 @@ async function doShowdown(state) {
   const stillAlive = state.seats.filter(s=>s&&!s.eliminated&&s.chips>0);
   if (stillAlive.length < 2) {
     state.phase = 'gameover';
+    // Xóa phòng đã lưu vì ván đã kết thúc
+    localStorage.removeItem('my_poker_room');
+    localStorage.removeItem('my_poker_seat');
   }
 
   await setRoom(roomId, state);
@@ -846,6 +958,24 @@ function handleStateUpdate(state) {
   if (document.getElementById('game').style.display !== 'flex') {
     document.getElementById('lobby').style.display = 'none';
     document.getElementById('game').style.display = 'flex';
+  }
+
+  // Host tự động xử lý trường hợp tất cả all-in nhưng showdown chưa chạy
+  // (state bị kẹt ở gamePhase <= 3, actionSeat = -1, community >= 5 lá)
+  if (isHost && state.phase === 'playing' && (state.gamePhase || 0) < 4) {
+    const everyoneAllInOrFolded = state.seats.every(s => !s || s.folded || s.allIn || s.chips === 0);
+    const communityFull = (state.community || []).length === 5;
+    const noAction = state.actionSeat === -1 && (state.bettingQueue || []).length === 0;
+    if (everyoneAllInOrFolded && communityFull && noAction && !state.revealHands) {
+      // State bị kẹt — host chạy showdown
+      console.log('[HOST] Detecting stuck all-in state, running showdown...');
+      setTimeout(async () => {
+        const fresh = await getRoom(roomId);
+        if (fresh && fresh.phase === 'playing' && (fresh.gamePhase || 0) < 4 && !fresh.revealHands) {
+          await doShowdown(fresh);
+        }
+      }, 500);
+    }
   }
 
   renderGame(state);
@@ -967,14 +1097,19 @@ function renderActionsUI(state) {
   const isMyTurn = state.actionSeat === mySeat;
   const me = state.seats?.[mySeat];
 
+  // Phát hiện trường hợp all-in showdown: tất cả đều all-in, community đủ 5 lá, không ai cần action
+  const everyoneAllInOrFolded = state.seats.every(s => !s || s.folded || s.allIn || s.chips === 0);
+  const communityFull = (state.community || []).length === 5;
+  const isAllInShowdown = everyoneAllInOrFolded && communityFull && state.actionSeat === -1 && (state.gamePhase || 0) <= 3;
+
   if (!isMyTurn || !me || me.folded) {
     const other = state.seats?.[state.actionSeat];
     const name = other ? other.name : '...';
     const phaseNames = ['Pre-flop','Flop','Turn','River','Showdown'];
     const ph = phaseNames[state.gamePhase ?? 0] || '';
 
-    if (state.gamePhase >= 4) {
-      setStatus(`${ph} — Xem kết quả...`);
+    if (state.gamePhase >= 4 || isAllInShowdown) {
+      setStatus(`Showdown — Xem kết quả...`);
       showResultIfNeeded(state);
     } else if (state.actionSeat >= 0) {
       setStatus(`${ph} · ${name} đang suy nghĩ <span class="dots"><span></span><span></span><span></span></span>`);
@@ -1007,37 +1142,57 @@ let _resultShown = false;
 function showResultIfNeeded(state) {
   if (_resultShown) return;
   _resultShown = true;
-  setTimeout(() => { _resultShown = false; }, 7000);
+  setTimeout(() => { _resultShown = false; }, 8000);
 
   const me = state.seats?.[mySeat];
   if (!me) return;
 
-  // Was I in the hand?
-  const contenders = state.seats.map((s,i)=>({...s,seat:i})).filter(s=>s&&!s.folded&&state.revealHands?.[s.playerId]);
-  const iWon = contenders.some(p => {
-    const hand = state.revealHands?.[p.playerId] || [];
-    const myHand = state.revealHands?.[myId] || [];
-    if (!myHand.length || p.playerId !== myId) return false;
-    const myBest = bestOf7(myHand, state.community||[]);
-    const theirBest = bestOf7(hand, state.community||[]);
-    return myBest.rank >= theirBest.rank;
+  // Dùng revealHands nếu có (sau doShowdown), hoặc dùng hands thông thường (trường hợp all-in chưa qua doShowdown)
+  const handsSource = state.revealHands || state.hands || {};
+  const community = state.community || [];
+
+  // Lấy tất cả người chưa fold có bài
+  const contenders = state.seats.map((s,i)=>({...s,seat:i})).filter(s=>s && !s.folded && handsSource[s.playerId]);
+
+  if (contenders.length === 0) return; // Không có bài để so sánh
+
+  // Tính best hand cho từng người
+  contenders.forEach(p => {
+    const hand = handsSource[p.playerId] || [];
+    p._best = bestOf7(hand, community);
   });
 
-  // Find winners from log
+  // Xác định người thắng
+  contenders.sort((a,b) => a._best.rank !== b._best.rank ? b._best.rank - a._best.rank : cmpTb(b._best.tb, a._best.tb));
+  const topRank = contenders[0]._best.rank;
+  const topTb = contenders[0]._best.tb;
+  const winners = contenders.filter(p => p._best.rank === topRank && cmpTb(p._best.tb, topTb) === 0);
+
+  const myContender = contenders.find(p => p.playerId === myId);
+  const isMyWin = myContender && winners.some(w => w.playerId === myId);
+
+  // Kiểm tra trong log trước (nếu doShowdown đã chạy)
   const winLog = (state.log||[]).find(l=>l.includes('🏆'));
-  const isMyWin = winLog && me && winLog.includes(me.name);
+  const isMyWinFromLog = winLog ? winLog.includes(me.name) : null;
 
-  let type = isMyWin ? 'win' : 'lose';
-  let title = isMyWin ? '🏆 Bạn Thắng!' : '😞 Thua Ván Này';
+  // Ưu tiên log nếu có, nếu không tự tính
+  const finalIsWin = isMyWinFromLog !== null ? isMyWinFromLog : isMyWin;
 
-  // Build hand reveal HTML
+  let type = finalIsWin ? 'win' : 'lose';
+  let title = finalIsWin ? '🏆 Bạn Thắng!' : '😞 Thua Ván Này';
+
+  // Build hand reveal HTML — hiển thị bài của tất cả người chơi
   let detail = contenders.map(p => {
-    const hand = state.revealHands?.[p.playerId] || [];
-    const best = bestOf7(hand, state.community||[]);
-    const isW = winLog && winLog.includes(p.name);
-    return `<strong>${p.avatar||''} ${p.name}</strong>: ${best.name}${isW?' 🏆':''}<br>
-      <span style="font-size:0.7rem;color:var(--text-dim)">${hand.map(c=>c.r+c.s).join(' ')}</span>`;
-  }).join('<br>');
+    const hand = handsSource[p.playerId] || [];
+    const best = p._best;
+    const isW = winners.some(w => w.playerId === p.playerId);
+    const cardStr = hand.map(c => `<span style="color:${['♥','♦'].includes(c.s)?'#ff6b6b':'#e8e8e8'}">${c.r+c.s}</span>`).join(' ');
+    return `<div style="margin:6px 0;padding:6px 8px;background:rgba(255,255,255,0.05);border-radius:6px;border:1px solid ${isW?'rgba(255,215,0,0.4)':'rgba(255,255,255,0.1)'}">
+      <strong>${p.avatar||''} ${p.name}</strong>${isW?' 🏆':''}<br>
+      <span style="font-size:0.85rem;font-weight:600;color:${isW?'#ffd700':'#a0cfff'}">${best.name}</span><br>
+      <span style="font-size:0.75rem;letter-spacing:2px">${cardStr}</span>
+    </div>`;
+  }).join('');
 
   document.getElementById('r-title').textContent = title;
   document.getElementById('r-title').className = 'modal-title mt-'+type;
@@ -1045,11 +1200,30 @@ function showResultIfNeeded(state) {
   document.getElementById('r-detail').innerHTML = detail || (winLog||'');
   document.getElementById('result-overlay').classList.add('show');
 
-  if (isMyWin) { SFX.win(); confetti(); } else SFX.lose();
+  if (finalIsWin) { SFX.win(); confetti(); } else SFX.lose();
 }
 
 function closeResult() {
   document.getElementById('result-overlay').classList.remove('show');
+}
+
+// ── Toast notification ──
+function showToast(msg, duration=3000) {
+  let toast = document.getElementById('poker-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'poker-toast';
+    toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(30,20,10,0.95);border:1px solid rgba(200,151,63,0.5);color:#e8d5a3;padding:10px 20px;border-radius:10px;font-size:0.85rem;z-index:9999;opacity:0;transition:all 0.3s;pointer-events:none;white-space:nowrap;';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  toast.style.transform = 'translateX(-50%) translateY(0)';
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(20px)';
+  }, duration);
 }
 
 function setStatus(msg) { document.getElementById('status').innerHTML = msg; }
