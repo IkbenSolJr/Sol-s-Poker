@@ -310,9 +310,17 @@ kbd{display:inline-block;background:rgba(0,0,0,0.35);border:1px solid rgba(255,2
 //  CONFIG — điền key Supabase của bạn vào đây
 //  hoặc dùng form trong lobby
 // ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+//  ✏️  ĐIỀN KEY SUPABASE CỦA BẠN VÀO ĐÂY
+//  Vào supabase.com → Project → Settings → API
+// ═══════════════════════════════════════════════════
+const SUPABASE_URL = 'https://XXXXXXXXXXXX.supabase.co';   // ← đổi
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6...';   // ← đổi
+// ═══════════════════════════════════════════════════
+
 const DEFAULT_CONFIG = {
-  url: localStorage.getItem('sb_url') || '',
-  key: localStorage.getItem('sb_key') || '',
+  url: SUPABASE_URL !== 'https://ykcdfhpfomyhdmbashih.supabase.co' ? SUPABASE_URL : (localStorage.getItem('sb_url') || ''),
+  key: SUPABASE_KEY !== 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlrY2RmaHBmb215aGRtYmFzaGloIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MDM0MTAsImV4cCI6MjA4ODM3OTQxMH0.qtmvuloEAonzhSEEbpfpbWKtRGUZs90QxC4vTy_FySA' ? SUPABASE_KEY : (localStorage.getItem('sb_key') || ''),
 };
 
 let supabase = null;
@@ -366,7 +374,12 @@ function initSupabase(url, key) {
 document.getElementById('sb-url').value = DEFAULT_CONFIG.url;
 document.getElementById('sb-key').value = DEFAULT_CONFIG.key;
 if (DEFAULT_CONFIG.url && DEFAULT_CONFIG.key) {
-  initSupabase(DEFAULT_CONFIG.url, DEFAULT_CONFIG.key);
+  const ok = initSupabase(DEFAULT_CONFIG.url, DEFAULT_CONFIG.key);
+  // Hide setup card if keys already hardcoded
+  if (ok) {
+    document.getElementById('setup-section').style.display = 'none';
+    document.getElementById('config-banner').style.display = 'none';
+  }
 }
 
 // ── Unique ID ──
