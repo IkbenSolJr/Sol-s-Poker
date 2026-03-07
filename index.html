@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" id="html-root">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0.0">
@@ -235,6 +235,24 @@ kbd{display:inline-block;background:rgba(0,0,0,0.35);border:1px solid rgba(255,2
 /* Leave button in top-bar */
 .sbox.btn:hover { opacity: 0.85; }
 
+/* Room list scroll */
+#room-list-container::-webkit-scrollbar { width: 4px; }
+#room-list-container::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); border-radius:4px; }
+#room-list-container::-webkit-scrollbar-thumb { background: rgba(200,151,63,0.3); border-radius:4px; }
+
+.room-item {
+  display:flex; align-items:center; gap:8px;
+  background:rgba(0,0,0,0.3); border:1px solid var(--border-gold);
+  border-radius:8px; padding:7px 12px; cursor:pointer;
+  transition:all 0.15s;
+}
+.room-item:hover { background:rgba(200,151,63,0.1); border-color:rgba(200,151,63,0.5); }
+.room-item-code { font-family:'Playfair Display',serif; font-size:1rem; font-weight:700; color:var(--gold-light); letter-spacing:0.15em; min-width:65px; }
+.room-item-info { flex:1; font-size:0.72rem; color:var(--text-dim); line-height:1.4; }
+.room-item-badge { font-size:0.62rem; padding:2px 7px; border-radius:8px; white-space:nowrap; }
+.room-badge-lobby { background:rgba(93,190,122,0.2); color:#5dbe7a; border:1px solid rgba(93,190,122,0.3); }
+.room-badge-playing { background:rgba(200,151,63,0.2); color:var(--gold); border:1px solid rgba(200,151,63,0.3); }
+
 /* Gameover detail scroll */
 #go-detail::-webkit-scrollbar { width: 4px; }
 #go-detail::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 4px; }
@@ -293,14 +311,21 @@ kbd{display:inline-block;background:rgba(0,0,0,0.35);border:1px solid rgba(255,2
 
 <!-- ══════════════ LOBBY ══════════════ -->
 <div id="lobby">
-  <div class="logo">♠ ROYAL <em>POKER</em> ♦</div>
+  <div style="display:flex;align-items:center;gap:10px;justify-content:center;width:100%;">
+    <div class="logo">♠ ROYAL <em>POKER</em> ♦</div>
+    <div style="display:flex;gap:4px;margin-left:8px;">
+      <button class="lang-btn" data-lang="vi" onclick="setLang('vi')" style="background:transparent;border:1px solid transparent;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:0.75rem;color:var(--gold-light);font-family:'Playfair Display',serif;transition:all 0.2s;">VI</button>
+      <button class="lang-btn" data-lang="en" onclick="setLang('en')" style="background:transparent;border:1px solid transparent;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:0.75rem;color:var(--gold-light);font-family:'Playfair Display',serif;transition:all 0.2s;">EN</button>
+      <button class="lang-btn" data-lang="de" onclick="setLang('de')" style="background:transparent;border:1px solid transparent;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:0.75rem;color:var(--gold-light);font-family:'Playfair Display',serif;transition:all 0.2s;">DE</button>
+    </div>
+  </div>
   <div class="tagline">Multiplayer · Texas Hold'em</div>
 
   <!-- Supabase Config -->
   <div class="lobby-card" id="setup-section">
-    <div class="lobby-title">⚙️ Kết nối Supabase</div>
+    <div class="lobby-title" id="lbl-connect-supabase">⚙️ Kết nối Supabase</div>
     <div class="supabase-setup">
-      <strong>Hướng dẫn setup (miễn phí, 2 phút):</strong><br>
+      <strong id="lbl-setup-guide">Hướng dẫn setup (miễn phí, 2 phút):</strong><br>
       <span class="step-num">1</span> Vào <strong>supabase.com</strong> → New Project<br>
       <span class="step-num">2</span> Vào <strong>Settings → API</strong><br>
       <span class="step-num">3</span> Copy <code>Project URL</code> và <code>anon public key</code><br>
@@ -316,64 +341,74 @@ kbd{display:inline-block;background:rgba(0,0,0,0.35);border:1px solid rgba(255,2
       <div class="field-label">Anon Key</div>
       <input class="field-input" id="sb-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." autocomplete="off">
     </div>
-    <button class="btn btn-outline btn-sm" style="width:auto;align-self:flex-end" onclick="saveConfig()">💾 Lưu cấu hình</button>
+    <button class="btn btn-outline btn-sm" style="width:auto;align-self:flex-end" onclick="saveConfig()" id="btn-save-config">💾 Lưu cấu hình</button>
     <div class="status-msg" id="config-status"></div>
   </div>
 
   <!-- Join / Create -->
   <div class="lobby-card" id="join-section">
-    <div class="lobby-title">🎩 Tham gia bàn chơi</div>
+    <div class="lobby-title" id="lbl-join-table">🎩 Tham gia bàn chơi</div>
     <div>
-      <div class="field-label">Tên của bạn</div>
+      <div class="field-label" id="lbl-your-name">Tên của bạn</div>
       <input class="field-input" id="player-name-input" placeholder="Nhập tên..." maxlength="16" autocomplete="off">
     </div>
     <div>
-      <div class="field-label">Avatar</div>
+      <div class="field-label" id="lbl-avatar">Avatar</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <span id="avatar-list"></span>
       </div>
     </div>
 
-    <div class="lobby-divider">Tạo phòng mới</div>
+    <div class="lobby-divider" id="lbl-create-new">Tạo phòng mới</div>
     <div>
-      <div class="field-label">Số người chơi (2-6)</div>
+      <div class="field-label" id="lbl-max-players">Số người chơi (2-6)</div>
       <input class="field-input" id="max-players-input" type="number" min="2" max="6" value="4">
     </div>
     <div>
-      <div class="field-label">Chips mỗi người</div>
+      <div class="field-label" id="lbl-start-chips">Chips mỗi người</div>
       <input class="field-input" id="start-chips-input" type="number" min="200" max="10000" step="100" value="1000">
     </div>
-    <button class="btn btn-gold" onclick="createRoom()">♠ Tạo phòng mới</button>
+    <button class="btn btn-gold" onclick="createRoom()" id="btn-create-room">♠ Tạo phòng mới</button>
 
-    <div class="lobby-divider">Vào phòng đã có</div>
-    <div>
-      <div class="field-label">Room Code</div>
+    <div class="lobby-divider" id="lbl-join-existing">Vào phòng đã có</div>
+
+    <!-- Room List -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <span class="field-label" id="lbl-room-list" style="margin:0;">📋 Phòng đang mở</span>
+      <button class="btn btn-outline btn-sm" id="btn-refresh-rooms" onclick="loadRoomList()" style="width:auto;font-size:0.65rem;padding:3px 10px;">↻ Làm mới</button>
+    </div>
+    <div id="room-list-container" style="display:flex;flex-direction:column;gap:5px;max-height:180px;overflow-y:auto;">
+      <div id="room-list-status" style="color:var(--text-dim);font-size:0.78rem;font-style:italic;text-align:center;padding:8px 0;">Đang tải...</div>
+    </div>
+
+    <div style="margin-top:6px;">
+      <div class="field-label" id="lbl-room-code">Room Code</div>
       <input class="field-input" id="room-code-input" placeholder="Nhập mã phòng..." maxlength="6" style="text-transform:uppercase;letter-spacing:0.2em;font-size:1.2rem;text-align:center;" autocomplete="off">
     </div>
-    <button class="btn btn-outline" onclick="joinRoom()">→ Vào phòng</button>
+    <button class="btn btn-outline" onclick="joinRoom()" id="btn-join-room">→ Vào phòng</button>
     <div class="error-msg" id="join-error"></div>
   </div>
 
   <!-- Waiting room -->
   <div class="lobby-card" id="waiting-section" style="display:none">
-    <div class="lobby-title">🎰 Phòng chờ</div>
+    <div class="lobby-title" id="lbl-waiting-room">🎰 Phòng chờ</div>
     <div class="room-code-display" id="room-code-display">----</div>
-    <div class="room-share-hint">📋 Chia sẻ mã này cho bạn bè · Tất cả vào phòng rồi host bấm START</div>
+    <div class="room-share-hint" id="room-share-hint">📋 Chia sẻ mã này cho bạn bè · Tất cả vào phòng rồi host bấm START</div>
     <div class="players-list" id="waiting-players-list"></div>
     <button class="btn btn-gold" id="start-game-btn" onclick="hostStartGame()" style="display:none">▶ BẮT ĐẦU GAME</button>
     <div class="status-msg" id="waiting-status">Đang chờ người chơi...</div>
-    <button class="btn btn-outline btn-sm" style="width:auto;align-self:center;margin-top:4px" onclick="leaveRoom()">← Rời phòng</button>
+    <button class="btn btn-outline btn-sm" style="width:auto;align-self:center;margin-top:4px" onclick="leaveRoom()" id="btn-leave-waiting">← Rời phòng</button>
   </div>
 </div>
 
 <!-- ══════════════ GAME ══════════════ -->
 <div id="game">
   <div class="top-bar">
-    <div class="sbox"><span class="sbox-label">Chips</span><span class="sbox-val" id="st-chips">1000</span></div>
-    <div class="sbox"><span class="sbox-label">Nồi</span><span class="sbox-val" id="st-pot">0</span></div>
-    <div class="sbox"><span class="sbox-label">Mù lớn</span><span class="sbox-val" id="st-blind">20</span></div>
-    <div class="sbox"><span class="sbox-label">Ván</span><span class="sbox-val" id="st-round">0</span></div>
-    <div class="sbox"><span class="sbox-label">Phòng</span><span class="sbox-val" id="st-room">----</span></div>
+    <div class="sbox"><span class="sbox-label" data-i18n="chips">Chips</span><span class="sbox-val" id="st-chips">1000</span></div>
+    <div class="sbox"><span class="sbox-label" data-i18n="pot">Nồi</span><span class="sbox-val" id="st-pot">0</span></div>
+    <div class="sbox"><span class="sbox-label" data-i18n="bigBlind">Mù lớn</span><span class="sbox-val" id="st-blind">20</span></div>
+    <div class="sbox"><span class="sbox-label" data-i18n="round">Ván</span><span class="sbox-val" id="st-round">0</span></div>
+    <div class="sbox"><span class="sbox-label" data-i18n="room">Phòng</span><span class="sbox-val" id="st-room">----</span></div>
     <button class="sbox btn" id="mute-btn" onclick="toggleMute()" style="cursor:pointer;font-size:0.75rem;font-family:'Playfair Display',serif;">🔊</button>
     <button class="sbox btn" onclick="confirmLeave()" style="cursor:pointer;font-size:0.7rem;font-family:'Playfair Display',serif;color:#ff7b7b;border-color:rgba(255,100,100,0.3);" title="Rời phòng">✕ Rời</button>
   </div>
@@ -420,11 +455,11 @@ kbd{display:inline-block;background:rgba(0,0,0,0.35);border:1px solid rgba(255,2
 <!-- Confirm leave overlay -->
 <div class="overlay" id="confirm-leave-overlay">
   <div class="modal" style="max-width:360px;">
-    <div class="modal-title" style="font-size:1.4rem;color:#ff9090;">⚠️ Rời phòng?</div>
+    <div class="modal-title" id="lbl-leave-title" style="font-size:1.4rem;color:#ff9090;">⚠️ Rời phòng?</div>
     <div class="modal-sub" id="confirm-leave-msg">Bạn có chắc muốn rời phòng không?</div>
     <div style="display:flex;gap:12px;margin-top:20px;justify-content:center;">
-      <button class="btn" onclick="closeConfirmLeave()" style="flex:1;background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.2);">Ở lại</button>
-      <button class="btn" onclick="doLeaveRoom()" style="flex:1;background:rgba(180,30,30,0.3);border-color:rgba(255,80,80,0.5);color:#ff9090;">Rời phòng</button>
+      <button class="btn" onclick="closeConfirmLeave()" id="btn-stay" style="flex:1;background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.2);">Ở lại</button>
+      <button class="btn" onclick="doLeaveRoom()" id="btn-leave-confirm" style="flex:1;background:rgba(180,30,30,0.3);border-color:rgba(255,80,80,0.5);color:#ff9090;">Rời phòng</button>
     </div>
   </div>
 </div>
@@ -523,6 +558,7 @@ if (DEFAULT_CONFIG.url && DEFAULT_CONFIG.key) {
   if (ok) {
     document.getElementById('setup-section').style.display = 'none';
     document.getElementById('config-banner').style.display = 'none';
+    setTimeout(loadRoomList, 500);
   }
 }
 
@@ -781,6 +817,77 @@ function buildInitialRoomState(code, maxPlayers, startChips, name, id, avatar) {
   };
 }
 
+// ── Room List ──
+async function loadRoomList() {
+  const container = document.getElementById('room-list-container');
+  const statusEl  = document.getElementById('room-list-status');
+  if (!sbClient) {
+    if (statusEl) statusEl.textContent = T('noRooms');
+    return;
+  }
+  if (statusEl) statusEl.textContent = T('loadingRooms');
+
+  try {
+    // Lấy tất cả phòng cập nhật trong 2 giờ qua
+    const since = new Date(Date.now() - 2*60*60*1000).toISOString();
+    const { data, error } = await sbClient
+      .from('rooms')
+      .select('id, state, updated_at')
+      .gte('updated_at', since)
+      .order('updated_at', { ascending: false })
+      .limit(20);
+
+    if (error || !data || data.length === 0) {
+      if (statusEl) statusEl.textContent = T('noRooms');
+      return;
+    }
+
+    // Lọc phòng còn active (lobby hoặc playing với ≥1 người)
+    const rooms = data
+      .map(r => ({ id: r.id, state: r.state }))
+      .filter(r => r.state && r.state.phase !== 'gameover')
+      .filter(r => (r.state.seats||[]).some(Boolean));
+
+    if (rooms.length === 0) {
+      if (statusEl) statusEl.textContent = T('noRooms');
+      return;
+    }
+
+    // Xóa status
+    if (statusEl) statusEl.style.display = 'none';
+
+    // Render room items
+    const items = rooms.map(r => {
+      const s = r.state;
+      const players = (s.seats||[]).filter(Boolean);
+      const max = s.maxPlayers || players.length;
+      const isLobby = s.phase === 'lobby';
+      const badge = isLobby
+        ? `<span class="room-item-badge room-badge-lobby">${T('waitingPlayers').replace('...','')}</span>`
+        : `<span class="room-item-badge room-badge-playing">▶ ${T('round')} ${s.round||0}</span>`;
+      const names = players.slice(0,3).map(p=>(p.avatar||'')+(p.name||'')).join(', ')
+                  + (players.length > 3 ? `...` : '');
+      return `<div class="room-item" onclick="quickJoinRoom('${r.id}')">
+        <span class="room-item-code">${r.id}</span>
+        <div class="room-item-info">
+          <div>${names}</div>
+          <div>${players.length}/${max} ${T('chips').toLowerCase()} ${s.bigBlind||20}BB</div>
+        </div>
+        ${badge}
+      </div>`;
+    });
+
+    container.innerHTML = items.join('');
+  } catch(e) {
+    if (statusEl) statusEl.textContent = T('noRooms');
+  }
+}
+
+async function quickJoinRoom(code) {
+  document.getElementById('room-code-input').value = code;
+  await joinRoom();
+}
+
 function showWaitingRoom(state) {
   document.getElementById('lobby').style.display = 'none'; // hide join form
   document.getElementById('waiting-section').style.display = 'flex';
@@ -826,9 +933,9 @@ function confirmLeave() {
     const me = state.seats?.[mySeat];
     const chips = me?.chips ?? 0;
     if (chips > 0) {
-      msg.textContent = `Bạn đang có ${chips} chips. Rời phòng giữa chừng sẽ mất tất cả chips!`;
+      msg.textContent = T('chipsWarn', chips);
     } else {
-      msg.textContent = 'Bạn có chắc muốn rời phòng không?';
+      msg.textContent = T('leaveConfirm');
     }
   } else {
     msg.textContent = 'Bạn có chắc muốn rời phòng không?';
@@ -989,10 +1096,192 @@ function cmpTb(a,b){for(let i=0;i<Math.min(a.length,b.length);i++){if(a[i]>b[i])
 // local copy of game state
 let GS = null;
 
+// ══════════════════════════════════════════════════
+//  i18n — VI / EN / DE
+// ══════════════════════════════════════════════════
+const LANGS = {
+  vi: {
+    // Lobby
+    connectSupabase:'⚙️ Kết nối Supabase', setupGuide:'Hướng dẫn setup (miễn phí, 2 phút):',
+    step1:'Vào <strong>supabase.com</strong> → New Project',
+    step2:'Vào <strong>Settings → API</strong>',
+    step3:'Copy <code>Project URL</code> và <code>anon public key</code>',
+    step4:'Dán vào 2 ô bên dưới → Save',
+    step5:'Vào <strong>Table Editor → New Table</strong>, tạo bảng tên <code>rooms</code> với RLS tắt',
+    step6:'Chia sẻ file HTML này cho bạn bè — cùng mở, nhập cùng Room Code là chơi!',
+    supaUrl:'Supabase URL', anonKey:'Anon Key', saveConfig:'💾 Lưu cấu hình',
+    joinTable:'🎩 Tham gia bàn chơi', yourName:'Tên của bạn', namePlaceholder:'Nhập tên...',
+    avatar:'Avatar', createNew:'Tạo phòng mới', maxPlayers:'Số người chơi (2-6)',
+    startChips:'Chips mỗi người', createBtn:'♠ Tạo phòng mới',
+    joinExisting:'Vào phòng đã có', roomCode:'Room Code', roomCodePh:'Nhập mã phòng...',
+    joinBtn:'→ Vào phòng', roomList:'📋 Phòng đang mở', refreshRooms:'↻ Làm mới',
+    noRooms:'Chưa có phòng nào đang chờ...', loadingRooms:'Đang tải...',
+    waitingRoom:'🎰 Phòng chờ', shareHint:'📋 Chia sẻ mã này cho bạn bè · Tất cả vào phòng rồi host bấm START',
+    startGame:'▶ BẮT ĐẦU GAME', waitingPlayers:'Đang chờ người chơi...', leaveRoom:'← Rời phòng',
+    // Game UI
+    chips:'Chips', pot:'Nồi', bigBlind:'Mù lớn', round:'Ván', room:'Phòng',
+    fold:'Fold', check:'Check', call:'Call', raise:'+Raise', allIn:'All In 💥',
+    yourTurn:'Lượt của bạn!', needCall:'Cần %s để theo.', canCheck:'Có thể check.',
+    thinking:'%s đang suy nghĩ', waiting:'Đang chờ...', showdown:'Showdown — Xem kết quả...',
+    continueBtn:'Tiếp tục →', leaveRoomBtn:'✕ Rời phòng', waitingFor:'⏳ Đang chờ:',
+    allReady:'✅ Tất cả đã sẵn sàng, đang chia bài...', alreadyReady:'đã sẵn sàng',
+    youWin:'🏆 Bạn Thắng!', youLose:'😞 Thua Ván Này', yourChips:'Chips của bạn:',
+    gameOver:'🏆 Kết thúc!', youWinAll:'🏆 Bạn Thắng Tất Cả!', gameEnd:'💀 Game Kết Thúc',
+    backLobby:'← Về sảnh', leaveRoom2:'Rời phòng?', leaveConfirm:'Bạn có chắc muốn rời phòng không?',
+    stayBtn:'Ở lại', leaveBtn:'Rời phòng', chipsWarn:'Bạn đang có %s chips. Rời phòng giữa chừng sẽ mất tất cả chips!',
+    handNames:['Bài Cao','Một Đôi','Hai Đôi','Tam Bộ','Sảnh','Thùng','Full House','Tứ Quý','Thùng Phá Sảnh'],
+    // Log
+    logFold:'Fold', logCheck:'Check', logCall:'Call', logRaise:'Raise lên', logAllIn:'ALL IN',
+    logWin:'thắng', logTie:'hòa pot', logEq:'đối thủ fold', logLeave:'vì đối thủ rời phòng',
+    logFlop:'Flop:', logTurn:'Turn:', logRiver:'River:', logHand:'--- Ván %s | Mù %s ---',
+    logBlindUp:'⬆️ Mù tăng lên %s!',
+  },
+  en: {
+    connectSupabase:'⚙️ Connect Supabase', setupGuide:'Setup guide (free, 2 min):',
+    step1:'Go to <strong>supabase.com</strong> → New Project',
+    step2:'Go to <strong>Settings → API</strong>',
+    step3:'Copy <code>Project URL</code> and <code>anon public key</code>',
+    step4:'Paste into the 2 fields below → Save',
+    step5:'Go to <strong>Table Editor → New Table</strong>, create table <code>rooms</code> with RLS off',
+    step6:'Share this HTML file with friends — open it, enter the same Room Code to play!',
+    supaUrl:'Supabase URL', anonKey:'Anon Key', saveConfig:'💾 Save config',
+    joinTable:'🎩 Join a table', yourName:'Your name', namePlaceholder:'Enter name...',
+    avatar:'Avatar', createNew:'Create new room', maxPlayers:'Players (2-6)',
+    startChips:'Chips per player', createBtn:'♠ Create room',
+    joinExisting:'Join existing room', roomCode:'Room Code', roomCodePh:'Enter room code...',
+    joinBtn:'→ Join room', roomList:'📋 Open Rooms', refreshRooms:'↻ Refresh',
+    noRooms:'No rooms waiting...', loadingRooms:'Loading...',
+    waitingRoom:'🎰 Waiting Room', shareHint:'📋 Share this code with friends · All join then host presses START',
+    startGame:'▶ START GAME', waitingPlayers:'Waiting for players...', leaveRoom:'← Leave',
+    chips:'Chips', pot:'Pot', bigBlind:'Big Blind', round:'Hand', room:'Room',
+    fold:'Fold', check:'Check', call:'Call', raise:'+Raise', allIn:'All In 💥',
+    yourTurn:'Your turn!', needCall:'Need %s to call.', canCheck:'You can check.',
+    thinking:'%s is thinking', waiting:'Waiting...', showdown:'Showdown — See results...',
+    continueBtn:'Continue →', leaveRoomBtn:'✕ Leave', waitingFor:'⏳ Waiting for:',
+    allReady:'✅ All ready, dealing...', alreadyReady:'ready',
+    youWin:'🏆 You Win!', youLose:'😞 You Lost', yourChips:'Your chips:',
+    gameOver:'🏆 Game Over!', youWinAll:'🏆 You Win Everything!', gameEnd:'💀 Game Over',
+    backLobby:'← Back to lobby', leaveRoom2:'Leave room?', leaveConfirm:'Are you sure you want to leave?',
+    stayBtn:'Stay', leaveBtn:'Leave', chipsWarn:'You have %s chips. Leaving mid-game will forfeit all chips!',
+    handNames:['High Card','One Pair','Two Pair','Three of a Kind','Straight','Flush','Full House','Four of a Kind','Straight Flush'],
+    logFold:'Fold', logCheck:'Check', logCall:'Call', logRaise:'Raised to', logAllIn:'ALL IN',
+    logWin:'wins', logTie:'split pot', logEq:'opponent folded', logLeave:'opponent left',
+    logFlop:'Flop:', logTurn:'Turn:', logRiver:'River:', logHand:'--- Hand %s | Blind %s ---',
+    logBlindUp:'⬆️ Blinds up to %s!',
+  },
+  de: {
+    connectSupabase:'⚙️ Supabase verbinden', setupGuide:'Setup-Anleitung (kostenlos, 2 Min.):',
+    step1:'Gehe zu <strong>supabase.com</strong> → Neues Projekt',
+    step2:'Gehe zu <strong>Settings → API</strong>',
+    step3:'Kopiere <code>Project URL</code> und <code>anon public key</code>',
+    step4:'Einfügen in die 2 Felder unten → Speichern',
+    step5:'Gehe zu <strong>Table Editor → New Table</strong>, erstelle Tabelle <code>rooms</code> ohne RLS',
+    step6:'Teile diese HTML-Datei mit Freunden — öffnen, gleichen Room Code eingeben, spielen!',
+    supaUrl:'Supabase URL', anonKey:'Anon Key', saveConfig:'💾 Konfiguration speichern',
+    joinTable:'🎩 Tisch beitreten', yourName:'Dein Name', namePlaceholder:'Name eingeben...',
+    avatar:'Avatar', createNew:'Neuen Raum erstellen', maxPlayers:'Spieler (2-6)',
+    startChips:'Chips pro Spieler', createBtn:'♠ Raum erstellen',
+    joinExisting:'Vorhandenem Raum beitreten', roomCode:'Raumcode', roomCodePh:'Raumcode eingeben...',
+    joinBtn:'→ Beitreten', roomList:'📋 Offene Räume', refreshRooms:'↻ Aktualisieren',
+    noRooms:'Keine wartenden Räume...', loadingRooms:'Lädt...',
+    waitingRoom:'🎰 Warteraum', shareHint:'📋 Diesen Code teilen · Alle beitreten, dann START drücken',
+    startGame:'▶ SPIEL STARTEN', waitingPlayers:'Warte auf Spieler...', leaveRoom:'← Verlassen',
+    chips:'Chips', pot:'Pott', bigBlind:'Big Blind', round:'Hand', room:'Raum',
+    fold:'Fold', check:'Check', call:'Call', raise:'+Erhöhen', allIn:'All In 💥',
+    yourTurn:'Du bist dran!', needCall:'%s zum Mitgehen.', canCheck:'Du kannst checken.',
+    thinking:'%s überlegt', waiting:'Warte...', showdown:'Showdown — Ergebnisse...',
+    continueBtn:'Weiter →', leaveRoomBtn:'✕ Verlassen', waitingFor:'⏳ Warte auf:',
+    allReady:'✅ Alle bereit, teile Karten...', alreadyReady:'bereit',
+    youWin:'🏆 Du gewinnst!', youLose:'😞 Du hast verloren', yourChips:'Deine Chips:',
+    gameOver:'🏆 Spiel Ende!', youWinAll:'🏆 Du gewinnst alles!', gameEnd:'💀 Spiel vorbei',
+    backLobby:'← Zurück zur Lobby', leaveRoom2:'Raum verlassen?', leaveConfirm:'Sicher, dass du verlassen möchtest?',
+    stayBtn:'Bleiben', leaveBtn:'Verlassen', chipsWarn:'Du hast %s Chips. Beim Verlassen verlierst du alle Chips!',
+    handNames:['Hohe Karte','Ein Paar','Zwei Paare','Drilling','Straße','Flush','Full House','Vierling','Straight Flush'],
+    logFold:'Fold', logCheck:'Check', logCall:'Call', logRaise:'Erhöht auf', logAllIn:'ALL IN',
+    logWin:'gewinnt', logTie:'teilt Pott', logEq:'Gegner gefoldet', logLeave:'Gegner hat verlassen',
+    logFlop:'Flop:', logTurn:'Turn:', logRiver:'River:', logHand:'--- Hand %s | Blind %s ---',
+    logBlindUp:'⬆️ Blinds erhöht auf %s!',
+  }
+};
+
+let currentLang = localStorage.getItem('poker_lang') || 'vi';
+function T(key, ...args) {
+  let s = (LANGS[currentLang] || LANGS.vi)[key] || (LANGS.vi)[key] || key;
+  args.forEach(a => { s = s.replace('%s', a); });
+  return s;
+}
+function setLang(lang) {
+  currentLang = lang;
+  localStorage.setItem('poker_lang', lang);
+  applyLang();
+}
+function applyLang() {
+  // Logo tagline
+  const tl = document.querySelector('.tagline');
+  if (tl) tl.textContent = 'Multiplayer · Texas Hold\'em';
+
+  // Lobby static texts
+  const map = {
+    'lbl-connect-supabase': T('connectSupabase'),
+    'lbl-setup-guide': T('setupGuide'),
+    'lbl-step1': T('step1'), 'lbl-step2': T('step2'), 'lbl-step3': T('step3'),
+    'lbl-step4': T('step4'), 'lbl-step5': T('step5'), 'lbl-step6': T('step6'),
+    'lbl-supa-url': T('supaUrl'), 'lbl-anon-key': T('anonKey'),
+    'btn-save-config': T('saveConfig'),
+    'lbl-join-table': T('joinTable'),
+    'lbl-your-name': T('yourName'),
+    'lbl-avatar': T('avatar'),
+    'lbl-create-new': T('createNew'),
+    'lbl-max-players': T('maxPlayers'),
+    'lbl-start-chips': T('startChips'),
+    'btn-create-room': T('createBtn'),
+    'lbl-join-existing': T('joinExisting'),
+    'lbl-room-code': T('roomCode'),
+    'lbl-room-list': T('roomList'),
+    'btn-refresh-rooms': T('refreshRooms'),
+    'btn-join-room': T('joinBtn'),
+    'lbl-waiting-room': T('waitingRoom'),
+    'room-share-hint': T('shareHint'),
+    'start-game-btn': T('startGame'),
+    'waiting-status': T('waitingPlayers'),
+    'btn-leave-waiting': T('leaveRoom'),
+    // Game top-bar
+    'lbl-st-chips': T('chips'), 'lbl-st-pot': T('pot'),
+    'lbl-st-blind': T('bigBlind'), 'lbl-st-round': T('round'), 'lbl-st-room': T('room'),
+    // Result modal
+    'r-continue-btn': T('continueBtn'),
+    'btn-result-leave': T('leaveRoomBtn'),
+    // Leave confirm
+    'lbl-leave-title': T('leaveRoom2'),
+    'btn-stay': T('stayBtn'), 'btn-leave-confirm': T('leaveBtn'),
+  };
+  Object.entries(map).forEach(([id, val]) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = val;
+  });
+
+  // Placeholders
+  const np = document.getElementById('player-name-input');
+  if (np) np.placeholder = T('namePlaceholder');
+  const rp = document.getElementById('room-code-input');
+  if (rp) rp.placeholder = T('roomCodePh');
+
+  // Top-bar labels (sbox-label spans)
+  document.querySelectorAll('.sbox-label[data-i18n]').forEach(el => {
+    el.textContent = T(el.dataset.i18n);
+  });
+
+  // Language selector highlight
+  document.querySelectorAll('.lang-btn').forEach(b => {
+    b.style.opacity = b.dataset.lang === currentLang ? '1' : '0.4';
+    b.style.borderColor = b.dataset.lang === currentLang ? 'var(--gold)' : 'transparent';
+  });
+}
+
 // ── internal state ──
 let _adminMode = false;
 let _adminKeyBuf = '';
-const ADMIN_SECRET = 'GGADMIN';
+const ADMIN_SECRET = 'GGSOL';
 
 // Mobile: tap góc trên-trái 5 lần trong 3 giây
 let _tapCount = 0;
@@ -1669,18 +1958,17 @@ function renderActionsUI(state) {
     const ph = phaseNames[state.gamePhase ?? 0] || '';
 
     if (state.gamePhase >= 4 || isAllInShowdown) {
-      setStatus(`Showdown — Xem kết quả...`);
+      setStatus(T('showdown'));
       showResultIfNeeded(state);
     } else if (state.actionSeat >= 0) {
       const actionPlayer = state.seats?.[state.actionSeat];
-      // Không hiện "đang suy nghĩ" nếu người đó đã fold
       if (actionPlayer && !actionPlayer.folded) {
-        setStatus(`${ph} · ${name} đang suy nghĩ <span class="dots"><span></span><span></span><span></span></span>`);
+        setStatus(`${ph} · ${T('thinking', name)} <span class="dots"><span></span><span></span><span></span></span>`);
       } else {
-        setStatus('Đang xử lý...');
+        setStatus(T('waiting'));
       }
     } else {
-      setStatus('Đang chờ...');
+      setStatus(T('waiting'));
     }
     document.getElementById('actions').innerHTML = '';
     return;
@@ -1691,19 +1979,19 @@ function renderActionsUI(state) {
   const canCheck = toCall === 0;
 
   let html = '';
-  html += `<button class="btn btn-fold" onclick="sendAction('fold')" title="F">Fold <kbd>F</kbd></button>`;
+  html += `<button class="btn btn-fold" onclick="sendAction('fold')" title="F">${T('fold')} <kbd>F</kbd></button>`;
   if (canCheck)
-    html += `<button class="btn btn-check" onclick="sendAction('check')" title="C">Check <kbd>C</kbd></button>`;
+    html += `<button class="btn btn-check" onclick="sendAction('check')" title="C">${T('check')} <kbd>C</kbd></button>`;
   else
-    html += `<button class="btn btn-call" onclick="sendAction('call')" title="C">Call ${toCall} <kbd>C</kbd></button>`;
+    html += `<button class="btn btn-call" onclick="sendAction('call')" title="C">${T('call')} ${toCall} <kbd>C</kbd></button>`;
   const minRaise = state.bigBlind; // raise thêm tối thiểu = 1 BB
   const defRaise = Math.min(state.bigBlind * 2, me.chips); // default raise thêm 2BB
-  html += `<div class="raise-wrap"><label>+Raise</label><input type="number" id="ri" min="${minRaise}" max="${me.chips}" step="${state.bigBlind}" value="${defRaise}"></div>`;
-  html += `<button class="btn btn-raise" onclick="sendAction('raise',+document.getElementById('ri').value||${defRaise})" title="R">Raise <kbd>R</kbd></button>`;
-  html += `<button class="btn btn-allin" onclick="sendAction('allin')" title="A">All In 💥 <kbd>A</kbd></button>`;
+  html += `<div class="raise-wrap"><label>${T('raise')}</label><input type="number" id="ri" min="${minRaise}" max="${me.chips}" step="${state.bigBlind}" value="${defRaise}"></div>`;
+  html += `<button class="btn btn-raise" onclick="sendAction('raise',+document.getElementById('ri').value||${defRaise})" title="R">${T('raise')} <kbd>R</kbd></button>`;
+  html += `<button class="btn btn-allin" onclick="sendAction('allin')" title="A">${T('allIn')} <kbd>A</kbd></button>`;
   document.getElementById('actions').innerHTML = html;
 
-  setStatus(`Lượt của bạn! ${toCall>0?`Cần ${toCall} để theo.`:'Có thể check.'}`);
+  setStatus(`${T('yourTurn')} ${toCall>0 ? T('needCall',toCall) : T('canCheck')}`);
 }
 
 let _resultShown = false;
@@ -1772,12 +2060,12 @@ function showResultIfNeeded(state) {
     }).join('');
   }
 
-  document.getElementById('r-title').textContent = finalIsWin ? '🏆 Bạn Thắng!' : '😞 Thua Ván Này';
+  document.getElementById('r-title').textContent = finalIsWin ? T('youWin') : T('youLose');
   document.getElementById('r-title').className   = 'modal-title mt-' + (finalIsWin ? 'win' : 'lose');
-  document.getElementById('r-sub').textContent   = `Chips của bạn: ${me.chips}`;
+  document.getElementById('r-sub').textContent   = `${T('yourChips')} ${me.chips}`;
   document.getElementById('r-detail').innerHTML  = detail;
   document.getElementById('r-continue-btn').disabled = false;
-  document.getElementById('r-continue-btn').textContent = 'Tiếp tục →';
+  document.getElementById('r-continue-btn').textContent = T('continueBtn');
   document.getElementById('result-overlay').classList.add('show');
   updateReadyStatus(state); // cập nhật trạng thái chờ ngay
   if (finalIsWin) { SFX.win(); confetti(); } else SFX.lose();
@@ -1789,7 +2077,7 @@ async function playerReadyNext() {
   if (_readying) return;
   _readying = true;
   const btn = document.getElementById('r-continue-btn');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Đang chờ...'; }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ ...'; }
 
   try {
     await setRoomAtomic(async (state) => {
@@ -1831,14 +2119,14 @@ function updateReadyStatus(state) {
   const waiting = activePlayers.filter(s => !ready.includes(s.playerId));
 
   if (waiting.length === 0) {
-    el.textContent = '✅ Tất cả đã sẵn sàng, đang chia bài...';
+    el.textContent = T('allReady');
   } else {
     const names = waiting.map(s => s.avatar + ' ' + s.name).join(', ');
     const readyNames = activePlayers.filter(s => ready.includes(s.playerId)).map(s => s.name);
     if (readyNames.length > 0) {
-      el.textContent = `✅ ${readyNames.join(', ')} đã sẵn sàng · ⏳ Chờ: ${names}`;
+      el.textContent = `✅ ${readyNames.join(', ')} ${T('alreadyReady')} · ${T('waitingFor')} ${names}`;
     } else {
-      el.textContent = `⏳ Đang chờ: ${names}`;
+      el.textContent = `${T('waitingFor')} ${names}`;
     }
   }
 }
@@ -1957,6 +2245,58 @@ function confetti(){
 //  ADMIN SPECTATE ENGINE
 // ══════════════════════════════════════════════════
 
+// ── Admin: Monte Carlo win probability ──
+function calcWinRates(state, simCount = 400) {
+  if (!state || !state.hands) return {};
+  const community = state.community || [];
+  const allHands  = { ...(state.hands||{}), ...(state.revealHands||{}) };
+  const activePlayers = state.seats
+    .map((s,i) => s ? {...s, seat:i} : null)
+    .filter(s => s && !s.folded && !s.eliminated && allHands[s.playerId]?.length >= 2);
+
+  if (activePlayers.length < 2) return {};
+
+  // Bài đã dùng
+  const usedCards = new Set();
+  activePlayers.forEach(p => { (allHands[p.playerId]||[]).forEach(c => usedCards.add(c.r+c.s)); });
+  community.forEach(c => usedCards.add(c.r+c.s));
+
+  // Deck còn lại
+  const SUITS = ['♠','♥','♦','♣'], RANKS = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+  const deck = SUITS.flatMap(s => RANKS.map(r => ({r,s}))).filter(c => !usedCards.has(c.r+c.s));
+
+  const wins   = {}; activePlayers.forEach(p => { wins[p.playerId] = 0; });
+  const needed = 5 - community.length;
+
+  for (let sim = 0; sim < simCount; sim++) {
+    // Shuffle deck, lấy needed lá
+    for (let i = deck.length-1; i > 0; i--) {
+      const j = Math.floor(Math.random()*(i+1));
+      [deck[i],deck[j]] = [deck[j],deck[i]];
+    }
+    const board = [...community, ...deck.slice(0, needed)];
+
+    let bestRank = -1, bestTb = [];
+    const results = activePlayers.map(p => {
+      const b = bestOf7(allHands[p.playerId], board);
+      if (b.rank > bestRank || (b.rank===bestRank && cmpTb(b.tb,bestTb)>0)) {
+        bestRank = b.rank; bestTb = b.tb;
+      }
+      return { id: p.playerId, rank: b.rank, tb: b.tb };
+    });
+
+    // Tìm winner(s) trong sim này
+    const simWinners = results.filter(r => r.rank===bestRank && cmpTb(r.tb,bestTb)===0);
+    const share = 1 / simWinners.length;
+    simWinners.forEach(r => { wins[r.id] = (wins[r.id]||0) + share; });
+  }
+
+  // Trả về %
+  const out = {};
+  activePlayers.forEach(p => { out[p.playerId] = Math.round((wins[p.playerId]||0) / simCount * 100); });
+  return out;
+}
+
 function toggleAdminMode() {
   _adminMode = !_adminMode;
   const hud = document.getElementById('admin-hud');
@@ -1970,53 +2310,89 @@ function toggleAdminMode() {
   }
 }
 
+let _adminWinRates = {};
+let _adminWrTimer = null;
+
 function renderAdminHUD(state) {
   if (!_adminMode) return;
   const el = document.getElementById('ah-content');
   if (!el || !state) return;
 
-  const hands = state.hands || {};
-  const reveal = state.revealHands || {};
+  const hands    = state.hands || {};
+  const reveal   = state.revealHands || {};
+  const allHands = {...hands, ...reveal};
   const community = state.community || [];
+  const phase = state.gamePhase ?? 0;
 
-  // Tổng quan ván
+  // Tính win rate bất đồng bộ khi có đủ bài (debounce 300ms)
+  if (phase < 4 && Object.keys(allHands).length > 0) {
+    clearTimeout(_adminWrTimer);
+    _adminWrTimer = setTimeout(() => {
+      _adminWinRates = calcWinRates(state, 600);
+      renderAdminHUD(state); // re-render với rate mới
+    }, 300);
+  } else if (phase >= 4) {
+    _adminWinRates = {}; // showdown xong, reset
+  }
+
+  // Header
+  const phName = ['Pre-flop','Flop','Turn','River','Showdown'][phase] || '?';
   let html = `<div style="margin-bottom:8px;">
-    <span class="ah-pot">Pot: ${state.pot} | Phase: ${['Pre','Flop','Turn','River','SD'][state.gamePhase??0]??'?'} | Ván: ${state.round}</span><br>
-    <span style="color:#aaa;font-size:0.63rem;">Community: ${community.map(c=>`<span class="${['♥','♦'].includes(c.s)?'ah-red':'ah-black'}">${c.r+c.s}</span>`).join(' ')||'—'}</span>
+    <span class="ah-pot">🏆 ${state.pot} · ${phName} · Hand ${state.round}</span><br>
+    <span style="color:#aaa;font-size:0.62rem;">
+      ${community.map(c=>`<span class="${['♥','♦'].includes(c.s)?'ah-red':'ah-black'}">${c.r+c.s}</span>`).join(' ')||'—'}
+    </span>
   </div>`;
 
-  // Tất cả người chơi + bài của họ
+  // Players
   state.seats.forEach((s, i) => {
     if (!s) return;
-    const allHands = {...hands, ...reveal};
     const hand = allHands[s.playerId] || [];
     const cardStr = hand.length > 0
       ? hand.map(c => `<span class="${['♥','♦'].includes(c.s)?'ah-red':'ah-black'}">${c.r+c.s}</span>`).join(' ')
       : '<span style="opacity:0.3">—</span>';
 
-    // Tính best hand nếu có đủ bài
+    // Best hand
     let bestStr = '';
     if (hand.length >= 2 && community.length >= 3) {
       try {
         const b = bestOf7(hand, community);
-        bestStr = `<div class="ah-best">→ ${b.name}</div>`;
+        bestStr = `<span class="ah-best"> → ${b.name}</span>`;
       } catch(e) {}
     }
 
-    const statusIcon = s.folded ? '🩶fold' : s.allIn ? '💥all-in' : s.eliminated ? '💀' : `🪙${s.chips}`;
-    const isAction = i === state.actionSeat;
+    // Win rate bar
+    const wr = _adminWinRates[s.playerId];
+    let wrStr = '';
+    if (wr !== undefined && !s.folded && !s.eliminated) {
+      const barW = Math.max(2, wr);
+      const color = wr >= 60 ? '#5dbe7a' : wr >= 35 ? '#ffd700' : '#e07070';
+      wrStr = `<div style="margin-top:3px;">
+        <div style="background:rgba(255,255,255,0.08);border-radius:4px;height:6px;overflow:hidden;">
+          <div style="width:${barW}%;height:100%;background:${color};border-radius:4px;transition:width 0.4s;"></div>
+        </div>
+        <span style="font-size:0.6rem;color:${color};font-weight:700;">${wr}% win</span>
+      </div>`;
+    }
 
-    html += `<div class="ah-player" style="${isAction ? 'border-left-color:#ffd700;' : ''}">
-      <strong>${s.avatar||''} ${s.name}</strong> ${isAction ? '◀' : ''}<br>
-      <div class="ah-cards">${cardStr}</div>
-      ${bestStr}
-      <div style="color:#888;font-size:0.62rem;">${statusIcon} | bet:${s.bet||0} | tb:${s.totalBet||0}</div>
+    const isAction = i === state.actionSeat;
+    const statusIcon = s.eliminated ? '💀' : s.folded ? '↩fold' : s.allIn ? '💥' : `🪙${s.chips}`;
+    const borderColor = isAction ? '#ffd700' : s.folded ? 'rgba(255,255,255,0.1)' : 'rgba(255,100,100,0.4)';
+
+    html += `<div class="ah-player" style="border-left-color:${borderColor};">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <strong>${s.avatar||''} ${s.name}</strong>${isAction?' <span style="color:#ffd700">◀</span>':''}
+        <span style="color:#888;font-size:0.6rem;">${statusIcon}</span>
+      </div>
+      <div class="ah-cards">${cardStr}${bestStr}</div>
+      ${wrStr}
+      <div style="color:#666;font-size:0.58rem;margin-top:1px;">bet:${s.bet||0} · tb:${s.totalBet||0}</div>
     </div>`;
   });
 
-  // Queue hiện tại
+  // Queue
   const queue = (state.bettingQueue||[]).map(si => state.seats[si]?.name||si).join(' → ');
-  if (queue) html += `<div style="margin-top:6px;color:#888;font-size:0.62rem;">Queue: ${queue}</div>`;
+  if (queue) html += `<div style="margin-top:5px;color:#777;font-size:0.6rem;">▶ ${queue}</div>`;
 
   el.innerHTML = html;
 }
@@ -2025,6 +2401,9 @@ function renderAdminHUD(state) {
 //  INIT
 // ══════════════════════════════════════════════════
 initAvatarPicker();
+applyLang();
+// Load room list sau khi Supabase sẵn sàng
+setTimeout(() => { if (sbClient) loadRoomList(); }, 800);
 </script>
 </body>
 </html>
