@@ -978,7 +978,8 @@ async function sendAction(action, raiseAmt=0) {
       console.warn('[RACE] State changed by another client, skipping action');
       return;
     }
-    
+
+    await setRoom(roomId, state);
     await advanceGame(state);
   } finally {
     _sending = false;
@@ -989,10 +990,14 @@ function applyPlayerAction(state, seat, action, raiseAmt) {
   const player = state.seats[seat];
   const toCall = Math.max(0, state.currentBet - player.bet);
   state.bettingQueue = state.bettingQueue.filter(s => s !== seat);
+  // Reset actionSeat ngay — tránh client khác thấy "đang suy nghĩ" khi action đã xong
+  state.actionSeat = state.bettingQueue[0] ?? -1;
 
   switch(action) {
     case 'fold':
       player.folded = true;
+      // Người fold không còn trong queue — actionSeat đã trỏ sang người tiếp theo
+      state.actionSeat = state.bettingQueue[0] ?? -1;
       addLog(state, `${player.name}: Fold`);
       SFX.fold(); break;
     case 'check':
@@ -1048,8 +1053,8 @@ async function advanceGame(state) {
   // Check only-one-left (fold win)
   const notFolded = state.seats.map((s,i)=>({...s,seat:i})).filter(s=>s&&!s.folded&&s.chips>=0&&!s.eliminated);
   if (notFolded.length === 1) {
-    const winnerSeat = notFolded[0].seat;
-    state.seats[winnerSeat].chips += state.pot;
+    const winner = notFolded[0];
+    winner.chips += state.pot;
     const wonAmount = state.pot;
     addLog(state, `🏆 ${winner.name} thắng ${wonAmount} chips (đối thủ fold)`);
     state.pot = 0;
@@ -1503,7 +1508,6 @@ function renderActionsUI(state) {
 
   if (!isMyTurn || !me || me.folded) {
     const other = state.seats?.[state.actionSeat];
-    const thinkingPlayer = other && !other.folded ? other : null;
     const name = other ? other.name : '...';
     const phaseNames = ['Pre-flop','Flop','Turn','River','Showdown'];
     const ph = phaseNames[state.gamePhase ?? 0] || '';
@@ -1512,7 +1516,13 @@ function renderActionsUI(state) {
       setStatus(`Showdown — Xem kết quả...`);
       showResultIfNeeded(state);
     } else if (state.actionSeat >= 0) {
-      setStatus(`${ph} · ${name} đang suy nghĩ <span class="dots"><span></span><span></span><span></span></span>`);
+      const actionPlayer = state.seats?.[state.actionSeat];
+      // Không hiện "đang suy nghĩ" nếu người đó đã fold
+      if (actionPlayer && !actionPlayer.folded) {
+        setStatus(`${ph} · ${name} đang suy nghĩ <span class="dots"><span></span><span></span><span></span></span>`);
+      } else {
+        setStatus('Đang xử lý...');
+      }
     } else {
       setStatus('Đang chờ...');
     }
